@@ -92,6 +92,50 @@ function FireflyField() {
   );
 }
 
+// Feste Mini-Positionen für Lumis Schwarm-Charakter im Header. Anders als das
+// grossflächige Hintergrund-Ambiente (FireflyField) ist dies ein kompaktes,
+// wiedererkennbares "Wesen" — Lumi besteht selbst aus mehreren Lichtpunkten,
+// die sich locker zu einer Form halten statt einzeln zu verstreuen.
+const SWARM_DOTS = Array.from({ length: 7 }, (_, i) => {
+  const angle = (i / 7) * Math.PI * 2;
+  return {
+    baseX: Math.cos(angle) * 6,
+    baseY: Math.sin(angle) * 6,
+    size: 2.5 + Math.random() * 1.5,
+    green: i % 3 === 0,
+    delay: Math.random() * 2,
+  };
+});
+
+// Lumi als eigener Charakter: ein kleiner, in sich gehaltener Schwarm aus
+// Lichtpunkten. Reagiert auf "thinking" (= Antwort wird gerade verarbeitet),
+// indem sich die Punkte enger zusammenziehen und heller werden — als würde
+// sich das Licht für einen Moment konzentrieren.
+function LumiSwarm({ thinking }) {
+  return (
+    <div className={"lumi-swarm" + (thinking ? " lumi-swarm-thinking" : "")} aria-hidden="true">
+      {SWARM_DOTS.map((d, i) => {
+        const dotColor = d.green ? "var(--lumi-green)" : "var(--lumi-gold)";
+        return (
+          <span
+            key={i}
+            className="lumi-swarm-dot"
+            style={{
+              "--base-x": d.baseX + "px",
+              "--base-y": d.baseY + "px",
+              width: d.size,
+              height: d.size,
+              background: dotColor,
+              color: dotColor,
+              animationDelay: d.delay + "s",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const [group, setGroup] = useState(null);
   const [stage, setStage] = useState(null);
@@ -227,7 +271,7 @@ export default function App() {
         <div className="lumi-chat-inner">
           <div className="lumi-header">
             <div className="lumi-header-left">
-              <div className="lumi-avatar-dot" />
+              <LumiSwarm thinking={loading} />
               <div>
                 <p className="lumi-header-title">LUMI</p>
                 <p className="lumi-header-subtitle">{STAGES.find((s) => s.id === stage)?.label}</p>
@@ -466,13 +510,39 @@ function LumiStyles() {
         align-items: center;
         gap: 10px;
       }
-      .lumi-avatar-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--lumi-gold);
-        box-shadow: 0 0 8px var(--lumi-gold);
+      .lumi-swarm {
+        position: relative;
+        width: 24px;
+        height: 24px;
         flex-shrink: 0;
+      }
+      .lumi-swarm-dot {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        border-radius: 50%;
+        opacity: 0.85;
+        box-shadow: 0 0 4px currentColor;
+        transform: translate(calc(-50% + var(--base-x)), calc(-50% + var(--base-y)));
+        animation: lumi-swarm-breathe 3.2s ease-in-out infinite;
+        transition: transform 0.7s ease-in-out, opacity 0.4s, box-shadow 0.4s;
+      }
+      @keyframes lumi-swarm-breathe {
+        0%, 100% { transform: translate(calc(-50% + var(--base-x)), calc(-50% + var(--base-y))) scale(1); }
+        50% { transform: translate(calc(-50% + var(--base-x) * 1.15), calc(-50% + var(--base-y) * 1.15)) scale(1.1); }
+      }
+      .lumi-swarm-thinking .lumi-swarm-dot {
+        transform: translate(calc(-50% + var(--base-x) * 0.35), calc(-50% + var(--base-y) * 0.35)) scale(1.3);
+        opacity: 1;
+        box-shadow: 0 0 7px currentColor;
+        animation: lumi-swarm-pulse 0.9s ease-in-out infinite;
+      }
+      @keyframes lumi-swarm-pulse {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .lumi-swarm-dot { animation: none !important; transition: none !important; }
       }
       .lumi-header-title {
         margin: 0;
