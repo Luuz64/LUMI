@@ -29,9 +29,7 @@ const STAGE_GROUPS = [
     id: "sek2group",
     label: "Sek II / Lehre",
     desc: "Gymi, Berufslehre, FMS, ...",
-    options: [
-      { id: "sek2", label: "Sek II / Lehre" },
-    ],
+    options: [{ id: "sek2", label: "Sek II / Lehre" }],
   },
 ];
 
@@ -45,10 +43,12 @@ const STARTERS = [
   "Ich habe Stress mit einer Freundschaft",
 ];
 
+// Anzahl Glühwürmchen im Hintergrund. Bewusst klein gehalten (siehe Design-
+// Feedback "zu überfüllt") und nur als ruhiges Ambiente, nie als Hauptfokus.
+const FIREFLY_COUNT = 9;
+
 // Schlanke Komponenten-Zuordnung, damit Markdown-Elemente (fett, Listen, Absätze)
 // ohne unschöne Extra-Abstände in die Chat-Bubble passen.
-// Hinweis: Inline-Styles unterstützen keine :last-child-Selektoren, daher bewusst
-// eine kleine, gleichmässige Absatz-Margin statt eines Pseudo-Selektor-Tricks.
 const markdownComponents = {
   p: ({ children }) => <p style={{ margin: "0 0 6px" }}>{children}</p>,
   strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
@@ -57,6 +57,40 @@ const markdownComponents = {
   ol: ({ children }) => <ol style={{ margin: "4px 0 6px", paddingLeft: 20 }}>{children}</ol>,
   li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
 };
+
+// Feste, einmalig berechnete Zufallspositionen für die Glühwürmchen, damit sie
+// nicht bei jedem Re-Render (z.B. während des Tippens) neu gewürfelt werden
+// und dadurch sichtbar "springen".
+const FIREFLIES = Array.from({ length: FIREFLY_COUNT }, () => ({
+  left: Math.random() * 100,
+  top: Math.random() * 100,
+  size: 2 + Math.random() * 2,
+  green: Math.random() > 0.6,
+  duration: 5 + Math.random() * 6,
+  delay: Math.random() * 5,
+}));
+
+function FireflyField() {
+  return (
+    <div className="lumi-fireflies" aria-hidden="true">
+      {FIREFLIES.map((f, i) => (
+        <span
+          key={i}
+          className="lumi-firefly"
+          style={{
+            left: f.left + "%",
+            top: f.top + "%",
+            width: f.size,
+            height: f.size,
+            background: f.green ? "var(--lumi-green)" : "var(--lumi-gold)",
+            animationDuration: f.duration + "s",
+            animationDelay: f.delay + "s",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function App() {
   const [group, setGroup] = useState(null);
@@ -124,254 +158,435 @@ export default function App() {
 
     if (!activeGroup) {
       return (
-        <div style={styles.onboardingWrap}>
-          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-            <div style={styles.avatar}>
-              <span style={{ fontSize: 26 }}>💡</span>
+        <div className="lumi-root">
+          <LumiStyles />
+          <div className="lumi-onboarding">
+            <FireflyField />
+            <div className="lumi-onboarding-inner">
+              <h1 className="lumi-hero">
+                Dein Licht
+                <br />
+                zum Denken.
+              </h1>
+              <p className="lumi-subtitle">
+                Nicht die Antwort geben, sondern beim Denken begleiten.
+              </p>
+
+              <p className="lumi-label">In welcher Schulstufe bist du?</p>
+
+              <div className="lumi-stage-list">
+                {STAGE_GROUPS.map((g) => (
+                  <button key={g.id} onClick={() => selectGroup(g)} className="lumi-stage-btn">
+                    <span className="lumi-stage-btn-title">{g.label}</span>
+                    <span className="lumi-stage-btn-desc">{g.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <h1 style={{ margin: "0 0 0.5rem", fontSize: 28, fontWeight: 600 }}>Lumi</h1>
-            <p style={{ color: "#6b6a63", margin: 0, fontSize: 15 }}>
-              Nicht die Antwort geben, sondern beim Denken begleiten.
-            </p>
-          </div>
-
-          <p style={{ fontSize: 14, color: "#6b6a63", marginBottom: "0.75rem" }}>
-            In welcher Schulstufe bist du?
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {STAGE_GROUPS.map((g) => (
-              <button key={g.id} onClick={() => selectGroup(g)} style={styles.stageButton}>
-                <span style={{ fontWeight: 600, fontSize: 14, display: "block" }}>{g.label}</span>
-                <span style={{ fontSize: 12, color: "#6b6a63" }}>{g.desc}</span>
-              </button>
-            ))}
           </div>
         </div>
       );
     }
 
     return (
-      <div style={styles.onboardingWrap}>
-        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={styles.avatar}>
-            <span style={{ fontSize: 26 }}>💡</span>
-          </div>
-          <h1 style={{ margin: "0 0 0.5rem", fontSize: 28, fontWeight: 600 }}>Lumi</h1>
-          <p style={{ color: "#6b6a63", margin: 0, fontSize: 15 }}>
-            Nicht die Antwort geben, sondern beim Denken begleiten.
-          </p>
-        </div>
+      <div className="lumi-root">
+        <LumiStyles />
+        <div className="lumi-onboarding">
+          <FireflyField />
+          <div className="lumi-onboarding-inner">
+            <h1 className="lumi-hero lumi-hero-small">
+              Dein Licht
+              <br />
+              zum Denken.
+            </h1>
 
-        <button onClick={() => setGroup(null)} style={{ ...styles.smallButton, marginBottom: "1rem" }}>
-          ← Zurück
-        </button>
-
-        <p style={{ fontSize: 14, color: "#6b6a63", marginBottom: "0.75rem" }}>
-          In welchem Schuljahr genau?
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {activeGroup.options.map((s) => (
-            <button key={s.id} onClick={() => setStage(s.id)} style={styles.stageButton}>
-              <span style={{ fontWeight: 600, fontSize: 14, display: "block" }}>{s.label}</span>
+            <button onClick={() => setGroup(null)} className="lumi-back-btn">
+              ← Zurück
             </button>
-          ))}
+
+            <p className="lumi-label">In welchem Schuljahr genau?</p>
+
+            <div className="lumi-stage-list">
+              {activeGroup.options.map((s) => (
+                <button key={s.id} onClick={() => setStage(s.id)} className="lumi-stage-btn">
+                  <span className="lumi-stage-btn-title">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.chatWrap}>
-      <div style={styles.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={styles.avatarSmall}>
-            <span style={{ fontSize: 16 }}>💡</span>
-          </div>
-          <div>
-            <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>Lumi</p>
-            <p style={{ margin: 0, fontSize: 12, color: "#6b6a63" }}>
-              {STAGES.find((s) => s.id === stage)?.label}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setStage(null);
-            setGroup(null);
-            setMessages([]);
-          }}
-          style={styles.smallButton}
-        >
-          Stufe ändern
-        </button>
-      </div>
-
-      <div ref={scrollRef} style={styles.messageArea}>
-        {messages.length === 0 && (
-          <div style={{ marginTop: 8 }}>
-            <p style={{ fontSize: 14, color: "#6b6a63", marginBottom: 10 }}>
-              Worüber möchtest du nachdenken?
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {STARTERS.map((s) => (
-                <button key={s} onClick={() => sendMessage(s)} style={styles.starterButton}>
-                  {s}
-                </button>
-              ))}
+    <div className="lumi-root">
+      <LumiStyles />
+      <div className="lumi-chat">
+        <FireflyField />
+        <div className="lumi-chat-inner">
+          <div className="lumi-header">
+            <div className="lumi-header-left">
+              <div className="lumi-avatar-dot" />
+              <div>
+                <p className="lumi-header-title">LUMI</p>
+                <p className="lumi-header-subtitle">{STAGES.find((s) => s.id === stage)?.label}</p>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                setStage(null);
+                setGroup(null);
+                setMessages([]);
+              }}
+              className="lumi-back-btn"
+            >
+              Stufe ändern
+            </button>
           </div>
-        )}
 
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              ...styles.bubble,
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              background: m.role === "user" ? "#1c1c1a" : "#f0efe9",
-              color: m.role === "user" ? "#ffffff" : "#1c1c1a",
-            }}
-          >
-            {m.role === "assistant" ? (
-              <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
-            ) : (
-              m.content
+          <div ref={scrollRef} className="lumi-message-area">
+            {messages.length === 0 && (
+              <div className="lumi-starters">
+                <p className="lumi-label">Worüber möchtest du nachdenken?</p>
+                <div className="lumi-starters-list">
+                  {STARTERS.map((s) => (
+                    <button key={s} onClick={() => sendMessage(s)} className="lumi-starter-btn">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((m, i) => (
+              <div key={i} className={"lumi-bubble " + (m.role === "user" ? "lumi-bubble-user" : "lumi-bubble-assistant")}>
+                {m.role === "assistant" ? (
+                  <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
+                ) : (
+                  m.content
+                )}
+              </div>
+            ))}
+
+            {loading && (
+              <div className="lumi-bubble lumi-bubble-assistant lumi-bubble-loading">Lumi denkt nach …</div>
             )}
           </div>
-        ))}
 
-        {loading && (
-          <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#f0efe9", color: "#6b6a63" }}>
-            Lumi denkt nach...
+          <div className="lumi-input-row">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Schreib Lumi etwas …"
+              rows={1}
+              className="lumi-textarea"
+            />
+            <button onClick={() => sendMessage()} disabled={loading} className="lumi-send-btn" aria-label="Senden">
+              →
+            </button>
           </div>
-        )}
-      </div>
-
-      <div style={styles.inputRow}>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Schreib Lumi etwas..."
-          rows={1}
-          style={styles.textarea}
-        />
-        <button onClick={() => sendMessage()} disabled={loading} style={styles.sendButton}>
-          →
-        </button>
+        </div>
       </div>
     </div>
   );
 }
 
-const styles = {
-  onboardingWrap: {
-    maxWidth: 440,
-    margin: "0 auto",
-    padding: "4rem 1.5rem",
-    minHeight: "100vh",
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: "50%",
-    background: "#e9f0fb",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 1rem",
-  },
-  avatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: "#e9f0fb",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stageButton: {
-    textAlign: "left",
-    padding: "14px 16px",
-    borderRadius: 10,
-    border: "1px solid #e3e1d8",
-    background: "#ffffff",
-    cursor: "pointer",
-  },
-  chatWrap: {
-    maxWidth: 600,
-    margin: "0 auto",
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    padding: "1rem 1.25rem",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    borderBottom: "1px solid #e3e1d8",
-    marginBottom: 12,
-  },
-  smallButton: {
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 8,
-    border: "1px solid #e3e1d8",
-    background: "#ffffff",
-    cursor: "pointer",
-  },
-  messageArea: {
-    flex: 1,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-    paddingRight: 4,
-  },
-  starterButton: {
-    textAlign: "left",
-    padding: "10px 12px",
-    fontSize: 13,
-    borderRadius: 8,
-    border: "1px solid #e3e1d8",
-    background: "#ffffff",
-    cursor: "pointer",
-  },
-  bubble: {
-    maxWidth: "82%",
-    borderRadius: 14,
-    padding: "10px 14px",
-    fontSize: 14,
-    lineHeight: 1.6,
-    whiteSpace: "pre-wrap",
-  },
-  inputRow: {
-    display: "flex",
-    gap: 8,
-    marginTop: 12,
-    alignItems: "flex-end",
-  },
-  textarea: {
-    flex: 1,
-    resize: "none",
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1px solid #e3e1d8",
-    fontSize: 14,
-    fontFamily: "inherit",
-    minHeight: 40,
-  },
-  sendButton: {
-    padding: "10px 16px",
-    borderRadius: 10,
-    border: "1px solid #1c1c1a",
-    background: "#1c1c1a",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: 16,
-  },
-};
+// Globale Styles (CSS-Variablen, Schriftimport, Keyframes, responsive Regeln).
+// Inline-Styles in React können weder @keyframes noch @media-Queries abbilden,
+// deshalb läuft das gesamte Lumi-Design über dieses eingebettete Stylesheet.
+function LumiStyles() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+      :root {
+        --lumi-bg: #0b1320;
+        --lumi-surface: #16243a;
+        --lumi-gold: #ffb84d;
+        --lumi-green: #7fd9a8;
+        --lumi-text: #f4f1e8;
+        --lumi-muted: #5a6b7a;
+      }
+
+      .lumi-root {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: var(--lumi-bg);
+        color: var(--lumi-text);
+        min-height: 100vh;
+      }
+
+      /* ---------- Glühwürmchen-Hintergrund ---------- */
+      .lumi-fireflies {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .lumi-firefly {
+        position: absolute;
+        border-radius: 50%;
+        opacity: 0.3;
+        animation-name: lumi-firefly-float;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+      }
+      @keyframes lumi-firefly-float {
+        0%, 100% { transform: translate(0, 0); opacity: 0.25; }
+        25% { transform: translate(8px, -12px); opacity: 0.55; }
+        50% { transform: translate(-6px, -6px); opacity: 0.3; }
+        75% { transform: translate(10px, 8px); opacity: 0.5; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .lumi-firefly { animation: none !important; }
+      }
+
+      /* ---------- Onboarding ---------- */
+      .lumi-onboarding {
+        position: relative;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 1.5rem;
+        box-sizing: border-box;
+      }
+      .lumi-onboarding-inner {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+      }
+      .lumi-hero {
+        font-family: 'Fraunces', serif;
+        font-weight: 600;
+        font-size: clamp(26px, 6vw, 34px);
+        line-height: 1.3;
+        letter-spacing: -0.3px;
+        margin: 0 0 14px;
+        color: var(--lumi-text);
+      }
+      .lumi-hero-small {
+        font-size: clamp(20px, 4vw, 24px);
+        margin-bottom: 20px;
+      }
+      .lumi-subtitle {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--lumi-muted);
+        margin: 0 0 clamp(28px, 6vh, 44px);
+      }
+      .lumi-label {
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+        color: var(--lumi-green);
+        margin: 0 0 14px;
+      }
+      .lumi-stage-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .lumi-stage-btn {
+        text-align: left;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(127, 217, 168, 0.2);
+        background: rgba(22, 36, 58, 0.5);
+        color: var(--lumi-text);
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .lumi-stage-btn:hover {
+        border-color: rgba(255, 184, 77, 0.4);
+        background: rgba(255, 184, 77, 0.08);
+      }
+      .lumi-stage-btn:focus-visible {
+        outline: 2px solid var(--lumi-gold);
+        outline-offset: 2px;
+      }
+      .lumi-stage-btn-title {
+        display: block;
+      }
+      .lumi-stage-btn-desc {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--lumi-muted);
+        margin-top: 2px;
+      }
+      .lumi-back-btn {
+        font-family: inherit;
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(127, 217, 168, 0.2);
+        background: transparent;
+        color: var(--lumi-muted);
+        cursor: pointer;
+        margin-bottom: 18px;
+      }
+      .lumi-back-btn:hover {
+        color: var(--lumi-text);
+        border-color: rgba(127, 217, 168, 0.4);
+      }
+
+      /* ---------- Chat ---------- */
+      .lumi-chat {
+        position: relative;
+        min-height: 100vh;
+      }
+      .lumi-chat-inner {
+        position: relative;
+        z-index: 2;
+        max-width: 640px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        padding: 1rem 1.25rem;
+        box-sizing: border-box;
+      }
+      .lumi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(127, 217, 168, 0.15);
+        margin-bottom: 12px;
+      }
+      .lumi-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .lumi-avatar-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--lumi-gold);
+        box-shadow: 0 0 8px var(--lumi-gold);
+        flex-shrink: 0;
+      }
+      .lumi-header-title {
+        margin: 0;
+        font-family: 'Fraunces', serif;
+        font-weight: 600;
+        font-size: 14px;
+        letter-spacing: 1px;
+      }
+      .lumi-header-subtitle {
+        margin: 0;
+        font-size: 12px;
+        color: var(--lumi-muted);
+      }
+      .lumi-message-area {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-right: 4px;
+      }
+      .lumi-starters {
+        margin-top: 8px;
+      }
+      .lumi-starters-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .lumi-starter-btn {
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-family: inherit;
+        border-radius: 8px;
+        border: 1px solid rgba(127, 217, 168, 0.2);
+        background: rgba(22, 36, 58, 0.4);
+        color: var(--lumi-text);
+        cursor: pointer;
+      }
+      .lumi-starter-btn:hover {
+        border-color: rgba(255, 184, 77, 0.4);
+      }
+      .lumi-bubble {
+        max-width: 82%;
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+      .lumi-bubble-user {
+        align-self: flex-end;
+        background: var(--lumi-gold);
+        color: #2c1b04;
+        white-space: pre-wrap;
+      }
+      .lumi-bubble-assistant {
+        align-self: flex-start;
+        background: var(--lumi-surface);
+        color: var(--lumi-text);
+      }
+      .lumi-bubble-loading {
+        color: var(--lumi-muted);
+      }
+      .lumi-input-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        align-items: flex-end;
+      }
+      .lumi-textarea {
+        flex: 1;
+        resize: none;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(127, 217, 168, 0.2);
+        background: rgba(22, 36, 58, 0.5);
+        color: var(--lumi-text);
+        font-size: 14px;
+        font-family: inherit;
+        min-height: 40px;
+      }
+      .lumi-textarea::placeholder {
+        color: var(--lumi-muted);
+      }
+      .lumi-textarea:focus-visible {
+        outline: 2px solid var(--lumi-gold);
+        outline-offset: 1px;
+      }
+      .lumi-send-btn {
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--lumi-gold);
+        background: var(--lumi-gold);
+        color: #2c1b04;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .lumi-send-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      /* ---------- Grössere Bildschirme: etwas mehr Luft, nicht mehr Inhalt ---------- */
+      @media (min-width: 768px) {
+        .lumi-onboarding-inner {
+          max-width: 440px;
+        }
+        .lumi-chat-inner {
+          padding: 1.5rem 2rem;
+        }
+      }
+    `}</style>
+  );
+}
