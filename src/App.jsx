@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 
 const STAGE_GROUPS = [
   {
@@ -43,6 +44,19 @@ const STARTERS = [
   "Was bedeutet eigentlich Photosynthese?",
   "Ich habe Stress mit einer Freundschaft",
 ];
+
+// Schlanke Komponenten-Zuordnung, damit Markdown-Elemente (fett, Listen, Absätze)
+// ohne unschöne Extra-Abstände in die Chat-Bubble passen.
+// Hinweis: Inline-Styles unterstützen keine :last-child-Selektoren, daher bewusst
+// eine kleine, gleichmässige Absatz-Margin statt eines Pseudo-Selektor-Tricks.
+const markdownComponents = {
+  p: ({ children }) => <p style={{ margin: "0 0 6px" }}>{children}</p>,
+  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  ul: ({ children }) => <ul style={{ margin: "4px 0 6px", paddingLeft: 20 }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ margin: "4px 0 6px", paddingLeft: 20 }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+};
 
 export default function App() {
   const [group, setGroup] = useState(null);
@@ -220,7 +234,11 @@ export default function App() {
               color: m.role === "user" ? "#ffffff" : "#1c1c1a",
             }}
           >
-            {m.content}
+            {m.role === "assistant" ? (
+              <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
+            ) : (
+              m.content
+            )}
           </div>
         ))}
 
