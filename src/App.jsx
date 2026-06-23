@@ -1,11 +1,41 @@
 import React, { useState, useRef, useEffect } from "react";
 
-const STAGES = [
-  { id: "1-4", label: "1.–4. Klasse", desc: "ca. 7–10 Jahre" },
-  { id: "5-6", label: "5.–6. Klasse", desc: "ca. 11–12 Jahre" },
-  { id: "sek1", label: "Sekundarstufe I", desc: "ca. 13–15 Jahre" },
-  { id: "sek2", label: "Sekundarstufe II / Lehre", desc: "ca. 16–19 Jahre" },
+const STAGE_GROUPS = [
+  {
+    id: "primar",
+    label: "Primarstufe",
+    desc: "1.–6. Schuljahr",
+    options: [
+      { id: "1", label: "1. Schuljahr" },
+      { id: "2", label: "2. Schuljahr" },
+      { id: "3", label: "3. Schuljahr" },
+      { id: "4", label: "4. Schuljahr" },
+      { id: "5", label: "5. Schuljahr" },
+      { id: "6", label: "6. Schuljahr" },
+    ],
+  },
+  {
+    id: "ober",
+    label: "Oberstufe / Sek I",
+    desc: "7.–9. Schuljahr",
+    options: [
+      { id: "7", label: "7. Schuljahr" },
+      { id: "8", label: "8. Schuljahr" },
+      { id: "9", label: "9. Schuljahr" },
+    ],
+  },
+  {
+    id: "sek2group",
+    label: "Sek II / Lehre",
+    desc: "Gymi, Berufslehre, FMS, ...",
+    options: [
+      { id: "sek2", label: "Sek II / Lehre" },
+    ],
+  },
 ];
+
+// Flache Liste aller Endauswahl-Optionen, damit Lookup per id weiterhin einfach bleibt
+const STAGES = STAGE_GROUPS.flatMap((g) => g.options);
 
 const STARTERS = [
   "Ich verstehe diese Matheaufgabe nicht",
@@ -15,6 +45,7 @@ const STARTERS = [
 ];
 
 export default function App() {
+  const [group, setGroup] = useState(null);
   const [stage, setStage] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -64,7 +95,48 @@ export default function App() {
     }
   }
 
+  function selectGroup(g) {
+    // Gruppen mit nur einer Option (Sek II / Lehre) direkt übernehmen,
+    // statt eine Zwischenseite mit nur einem Button zu zeigen.
+    if (g.options.length === 1) {
+      setStage(g.options[0].id);
+    } else {
+      setGroup(g.id);
+    }
+  }
+
   if (!stage) {
+    const activeGroup = STAGE_GROUPS.find((g) => g.id === group);
+
+    if (!activeGroup) {
+      return (
+        <div style={styles.onboardingWrap}>
+          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+            <div style={styles.avatar}>
+              <span style={{ fontSize: 26 }}>💡</span>
+            </div>
+            <h1 style={{ margin: "0 0 0.5rem", fontSize: 28, fontWeight: 600 }}>Lumi</h1>
+            <p style={{ color: "#6b6a63", margin: 0, fontSize: 15 }}>
+              Nicht die Antwort geben, sondern beim Denken begleiten.
+            </p>
+          </div>
+
+          <p style={{ fontSize: 14, color: "#6b6a63", marginBottom: "0.75rem" }}>
+            In welcher Schulstufe bist du?
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {STAGE_GROUPS.map((g) => (
+              <button key={g.id} onClick={() => selectGroup(g)} style={styles.stageButton}>
+                <span style={{ fontWeight: 600, fontSize: 14, display: "block" }}>{g.label}</span>
+                <span style={{ fontSize: 12, color: "#6b6a63" }}>{g.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={styles.onboardingWrap}>
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
@@ -77,15 +149,18 @@ export default function App() {
           </p>
         </div>
 
+        <button onClick={() => setGroup(null)} style={{ ...styles.smallButton, marginBottom: "1rem" }}>
+          ← Zurück
+        </button>
+
         <p style={{ fontSize: 14, color: "#6b6a63", marginBottom: "0.75rem" }}>
-          Für welche Stufe soll Lumi sich anpassen?
+          In welchem Schuljahr genau?
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {STAGES.map((s) => (
+          {activeGroup.options.map((s) => (
             <button key={s.id} onClick={() => setStage(s.id)} style={styles.stageButton}>
               <span style={{ fontWeight: 600, fontSize: 14, display: "block" }}>{s.label}</span>
-              <span style={{ fontSize: 12, color: "#6b6a63" }}>{s.desc}</span>
             </button>
           ))}
         </div>
@@ -110,6 +185,7 @@ export default function App() {
         <button
           onClick={() => {
             setStage(null);
+            setGroup(null);
             setMessages([]);
           }}
           style={styles.smallButton}
