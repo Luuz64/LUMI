@@ -296,6 +296,9 @@ export default function App() {
           <div className="lumi-onboarding">
             <FireflyField />
             <div className="lumi-onboarding-inner">
+              <div className="lumi-onboarding-character">
+                <LumiCharacter thinking={false} size={150} />
+              </div>
               <h1 className="lumi-hero">
                 Dein Licht
                 <br />
@@ -360,7 +363,7 @@ export default function App() {
         <div className="lumi-chat-inner">
           <div className="lumi-header">
             <div className="lumi-header-character">
-              <LumiCharacter thinking={loading} size={88} />
+              <LumiCharacter thinking={loading} size={140} />
             </div>
             <div className="lumi-header-text">
               <p className="lumi-header-title">LUMI</p>
@@ -482,7 +485,7 @@ function LumiStyles() {
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 3rem 1.5rem;
+        padding: 2rem 1.5rem;
         box-sizing: border-box;
       }
       .lumi-onboarding-inner {
@@ -492,13 +495,18 @@ function LumiStyles() {
         max-width: 400px;
         text-align: center;
       }
+      .lumi-onboarding-character {
+        margin: 0 auto 8px;
+        width: 150px;
+        height: 150px;
+      }
       .lumi-hero {
         font-family: 'Fraunces', serif;
         font-weight: 600;
-        font-size: clamp(26px, 6vw, 34px);
-        line-height: 1.3;
+        font-size: clamp(24px, 5.5vw, 32px);
+        line-height: 1.25;
         letter-spacing: -0.3px;
-        margin: 0 0 14px;
+        margin: 0 0 10px;
         color: var(--lumi-text);
       }
       .lumi-hero-small {
@@ -509,7 +517,7 @@ function LumiStyles() {
         font-size: 13px;
         line-height: 1.5;
         color: var(--lumi-muted);
-        margin: 0 0 clamp(28px, 6vh, 44px);
+        margin: 0 0 clamp(18px, 3.5vh, 28px);
       }
       .lumi-label {
         font-size: 12px;
