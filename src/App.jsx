@@ -225,49 +225,13 @@ function LumiCharacter({ thinking, size }) {
   );
 }
 
-// Verkleinert/komprimiert ein ausgew√§hltes Bild im Browser, bevor es als
-// Base64 verschickt wird. Grund: Fotos direkt von einem Handy sind oft
-// 3-5 MB gross ‚Äî das w√ºrde die Serverless-Funktion unn√∂tig verlangsamen,
-// unn√∂tig hohe API-Kosten verursachen (Bild-Tokens skalieren mit der
-// Aufl√∂sung) und riskiert, das Vercel-Body-Limit zu sprengen. 1200px Kante
-// reicht locker, um eine handschriftliche Aufgabe lesbar zu erfassen.
-function resizeImageToBase64(file, maxDim = 1200, quality = 0.72) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Bild konnte nicht gelesen werden"));
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg", preview: dataUrl });
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function App() {
   const [group, setGroup] = useState(null);
   const [stage, setStage] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, preview }
-  const [imageError, setImageError] = useState("");
   const scrollRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -275,61 +239,22 @@ export default function App() {
     }
   }, [messages, loading]);
 
-  async function handleImageSelect(e) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // erlaubt, dieselbe Datei sp√§ter erneut auszuw√§hlen
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setImageError("Bitte w√§hle ein Bild aus.");
-      return;
-    }
-    try {
-      setImageError("");
-      const img = await resizeImageToBase64(file);
-      setPendingImage(img);
-    } catch (err) {
-      setImageError("Das Bild konnte nicht geladen werden. Magst du es nochmal versuchen?");
-    }
-  }
-
-  function removePendingImage() {
-    setPendingImage(null);
-    setImageError("");
-  }
-
   async function sendMessage(text) {
     const content = text !== undefined ? text : input;
-    if ((!content.trim() && !pendingImage) || loading) return;
+    if (!content.trim() || loading) return;
 
-    // Wenn ein Bild angeh√§ngt ist, schicken wir einen mehrteiligen Content-Block
-    // (Bild + Text) im Format, das die Anthropic Messages API erwartet. Ohne
-    // Bild bleibt content weiterhin ein einfacher String wie bisher.
-    const userContent = pendingImage
-      ? [
-          {
-            type: "image",
-            source: { type: "base64", media_type: pendingImage.mediaType, data: pendingImage.base64 },
-          },
-          { type: "text", text: content.trim() || "Schau dir bitte dieses Bild an." },
-        ]
-      : content;
-
-    const userMsg = { role: "user", content: userContent, preview: pendingImage?.preview };
+    const userMsg = { role: "user", content };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
-    setPendingImage(null);
     setLoading(true);
 
     try {
       const stageLabel = STAGES.find((s) => s.id === stage)?.label;
-      // "preview" ist nur f√ºrs Anzeigen im Browser da (Vorschau-Bild) und muss
-      // nicht mit ans Backend/an die API geschickt werden.
-      const payloadMessages = newMessages.map(({ preview, ...m }) => m);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: payloadMessages, stageLabel }),
+        body: JSON.stringify({ messages: newMessages, stageLabel }),
       });
       const data = await response.json();
       const reply = data.reply || "Entschuldige, ich konnte gerade nicht antworten.";
@@ -474,11 +399,6 @@ export default function App() {
               <div key={i} className={"lumi-bubble " + (m.role === "user" ? "lumi-bubble-user" : "lumi-bubble-assistant")}>
                 {m.role === "assistant" ? (
                   <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
-                ) : Array.isArray(m.content) ? (
-                  <>
-                    {m.preview && <img src={m.preview} alt="Hochgeladenes Foto" className="lumi-msg-image" />}
-                    {m.content.find((b) => b.type === "text")?.text}
-                  </>
                 ) : (
                   m.content
                 )}
@@ -490,51 +410,18 @@ export default function App() {
             )}
           </div>
 
-          <div className="lumi-input-area">
-            {pendingImage && (
-              <div className="lumi-image-preview">
-                <img src={pendingImage.preview} alt="Vorschau des ausgew√§hlten Fotos" />
-                <button type="button" onClick={removePendingImage} className="lumi-image-remove" aria-label="Foto entfernen">
-                  ‚úï
-                </button>
-              </div>
-            )}
-            {imageError && <p className="lumi-image-error">{imageError}</p>}
-            <div className="lumi-input-row">
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                ref={fileInputRef}
-                onChange={handleImageSelect}
-                style={{ display: "none" }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="lumi-photo-btn"
-                aria-label="Foto hinzuf√ºgen"
-                disabled={loading}
-              >
-                üì∑
-              </button>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Schreib Lumi etwas ‚Ä¶"
-                rows={1}
-                className="lumi-textarea"
-              />
-              <button
-                onClick={() => sendMessage()}
-                disabled={loading || (!input.trim() && !pendingImage)}
-                className="lumi-send-btn"
-                aria-label="Senden"
-              >
-                ‚Üí
-              </button>
-            </div>
+          <div className="lumi-input-row">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Schreib Lumi etwas ‚Ä¶"
+              rows={1}
+              className="lumi-textarea"
+            />
+            <button onClick={() => sendMessage()} disabled={loading} className="lumi-send-btn" aria-label="Senden">
+              ‚Üí
+            </button>
           </div>
         </div>
       </div>
@@ -849,74 +736,11 @@ function LumiStyles() {
       .lumi-bubble-loading {
         color: var(--lumi-muted);
       }
-      .lumi-input-area {
-        margin-top: 12px;
-      }
-      .lumi-image-preview {
-        position: relative;
-        display: inline-block;
-        margin-bottom: 8px;
-      }
-      .lumi-image-preview img {
-        max-height: 90px;
-        max-width: 140px;
-        border-radius: 10px;
-        border: 1px solid rgba(127, 217, 168, 0.3);
-        display: block;
-        object-fit: cover;
-      }
-      .lumi-image-remove {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        border: none;
-        background: var(--lumi-bg);
-        color: var(--lumi-text);
-        font-size: 11px;
-        line-height: 20px;
-        text-align: center;
-        padding: 0;
-        cursor: pointer;
-      }
-      .lumi-image-error {
-        margin: 0 0 8px;
-        font-size: 12px;
-        color: #ff9f8a;
-      }
-      .lumi-msg-image {
-        display: block;
-        max-width: 100%;
-        border-radius: 10px;
-        margin-bottom: 8px;
-      }
       .lumi-input-row {
         display: flex;
         gap: 8px;
+        margin-top: 12px;
         align-items: flex-end;
-      }
-      .lumi-photo-btn {
-        flex-shrink: 0;
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        border: 1px solid rgba(127, 217, 168, 0.2);
-        background: rgba(22, 36, 58, 0.5);
-        color: var(--lumi-text);
-        cursor: pointer;
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .lumi-photo-btn:hover {
-        border-color: rgba(255, 184, 77, 0.4);
-      }
-      .lumi-photo-btn:disabled {
-        opacity: 0.5;
-        cursor: default;
       }
       .lumi-textarea {
         flex: 1;
