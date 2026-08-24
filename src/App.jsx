@@ -5,7 +5,7 @@ const STAGE_GROUPS = [
   {
     id: "primar",
     label: "Primarstufe",
-    desc: "1.–6. Schuljahr",
+    desc: "1.‚Äì6. Schuljahr",
     options: [
       { id: "1", label: "1. Schuljahr" },
       { id: "2", label: "2. Schuljahr" },
@@ -18,7 +18,7 @@ const STAGE_GROUPS = [
   {
     id: "ober",
     label: "Oberstufe / Sek I",
-    desc: "7.–9. Schuljahr",
+    desc: "7.‚Äì9. Schuljahr",
     options: [
       { id: "7", label: "7. Schuljahr" },
       { id: "8", label: "8. Schuljahr" },
@@ -43,12 +43,12 @@ const STARTERS = [
   "Ich habe Stress mit einer Freundschaft",
 ];
 
-// Anzahl Glühwürmchen im Hintergrund. Bewusst klein gehalten (siehe Design-
-// Feedback "zu überfüllt") und nur als ruhiges Ambiente, nie als Hauptfokus.
+// Anzahl Gl√ºhw√ºrmchen im Hintergrund. Bewusst klein gehalten (siehe Design-
+// Feedback "zu √ºberf√ºllt") und nur als ruhiges Ambiente, nie als Hauptfokus.
 const FIREFLY_COUNT = 9;
 
-// Schlanke Komponenten-Zuordnung, damit Markdown-Elemente (fett, Listen, Absätze)
-// ohne unschöne Extra-Abstände in die Chat-Bubble passen.
+// Schlanke Komponenten-Zuordnung, damit Markdown-Elemente (fett, Listen, Abs√§tze)
+// ohne unsch√∂ne Extra-Abst√§nde in die Chat-Bubble passen.
 const markdownComponents = {
   p: ({ children }) => <p style={{ margin: "0 0 6px" }}>{children}</p>,
   strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
@@ -58,8 +58,8 @@ const markdownComponents = {
   li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
 };
 
-// Feste, einmalig berechnete Zufallspositionen für die Glühwürmchen, damit sie
-// nicht bei jedem Re-Render (z.B. während des Tippens) neu gewürfelt werden
+// Feste, einmalig berechnete Zufallspositionen f√ºr die Gl√ºhw√ºrmchen, damit sie
+// nicht bei jedem Re-Render (z.B. w√§hrend des Tippens) neu gew√ºrfelt werden
 // und dadurch sichtbar "springen".
 const FIREFLIES = Array.from({ length: FIREFLY_COUNT }, () => ({
   left: Math.random() * 100,
@@ -92,9 +92,9 @@ function FireflyField() {
   );
 }
 
-// Feste Mini-Positionen für Lumis Schwarm-Charakter im Header. Anders als das
-// grossflächige Hintergrund-Ambiente (FireflyField) ist dies ein kompaktes,
-// wiedererkennbares "Wesen" — Lumi besteht selbst aus mehreren Lichtpunkten,
+// Feste Mini-Positionen f√ºr Lumis Schwarm-Charakter im Header. Anders als das
+// grossfl√§chige Hintergrund-Ambiente (FireflyField) ist dies ein kompaktes,
+// wiedererkennbares "Wesen" ‚Äî Lumi besteht selbst aus mehreren Lichtpunkten,
 // die sich locker zu einer Form halten statt einzeln zu verstreuen.
 const SWARM_DOTS = Array.from({ length: 7 }, (_, i) => {
   const angle = (i / 7) * Math.PI * 2;
@@ -109,8 +109,8 @@ const SWARM_DOTS = Array.from({ length: 7 }, (_, i) => {
 
 // Lumi als eigener Charakter: ein kleiner, in sich gehaltener Schwarm aus
 // Lichtpunkten. Reagiert auf "thinking" (= Antwort wird gerade verarbeitet),
-// indem sich die Punkte enger zusammenziehen und heller werden — als würde
-// sich das Licht für einen Moment konzentrieren.
+// indem sich die Punkte enger zusammenziehen und heller werden ‚Äî als w√ºrde
+// sich das Licht f√ºr einen Moment konzentrieren.
 function LumiSwarm({ thinking }) {
   return (
     <div className={"lumi-swarm" + (thinking ? " lumi-swarm-thinking" : "")} aria-hidden="true">
@@ -138,14 +138,14 @@ function LumiSwarm({ thinking }) {
 
 // Lumi als animiertes Inline-SVG (von Luca selbst per ChatGPT generierter Code).
 // Inline statt <img src="..."> eingebunden, weil eingebettete SVG-Animationen
-// in <img>-Tags je nach Browser unzuverlässig abspielen — als direktes JSX-
+// in <img>-Tags je nach Browser unzuverl√§ssig abspielen ‚Äî als direktes JSX-
 // Markup laufen die @keyframes-Animationen garantiert in jedem Browser.
-// "thinking" beschleunigt den Flügelschlag/Glow leicht, ohne die Grundanimation
+// "thinking" beschleunigt den Fl√ºgelschlag/Glow leicht, ohne die Grundanimation
 // zu ersetzen, damit Lumi beim Nachdenken sichtbar "aktiver" wirkt.
 function LumiCharacter({ thinking, size }) {
   return (
     <div className={"lumi-character" + (thinking ? " lumi-character-thinking" : "")} style={{ width: size, height: size }}>
-      <svg viewBox="0 0 720 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LUMI, ein freundliches leuchtendes Glühwürmchen">
+      <svg viewBox="0 0 720 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LUMI, ein freundliches leuchtendes Gl√ºhw√ºrmchen">
         <defs>
           <radialGradient id="lumiBodyGrad" cx="36%" cy="22%" r="78%">
             <stop offset="0%" stopColor="#30486e" />
@@ -225,13 +225,49 @@ function LumiCharacter({ thinking, size }) {
   );
 }
 
+// Verkleinert/komprimiert ein ausgew√§hltes Bild im Browser, bevor es als
+// Base64 verschickt wird. Grund: Fotos direkt von einem Handy sind oft
+// 3-5 MB gross ‚Äî das w√ºrde die Serverless-Funktion unn√∂tig verlangsamen,
+// unn√∂tig hohe API-Kosten verursachen (Bild-Tokens skalieren mit der
+// Aufl√∂sung) und riskiert, das Vercel-Body-Limit zu sprengen. 1200px Kante
+// reicht locker, um eine handschriftliche Aufgabe lesbar zu erfassen.
+function resizeImageToBase64(file, maxDim = 1200, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Bild konnte nicht gelesen werden"));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg", preview: dataUrl });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function App() {
   const [group, setGroup] = useState(null);
   const [stage, setStage] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, preview }
+  const [imageError, setImageError] = useState("");
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -239,22 +275,61 @@ export default function App() {
     }
   }, [messages, loading]);
 
+  async function handleImageSelect(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // erlaubt, dieselbe Datei sp√§ter erneut auszuw√§hlen
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setImageError("Bitte w√§hle ein Bild aus.");
+      return;
+    }
+    try {
+      setImageError("");
+      const img = await resizeImageToBase64(file);
+      setPendingImage(img);
+    } catch (err) {
+      setImageError("Das Bild konnte nicht geladen werden. Magst du es nochmal versuchen?");
+    }
+  }
+
+  function removePendingImage() {
+    setPendingImage(null);
+    setImageError("");
+  }
+
   async function sendMessage(text) {
     const content = text !== undefined ? text : input;
-    if (!content.trim() || loading) return;
+    if ((!content.trim() && !pendingImage) || loading) return;
 
-    const userMsg = { role: "user", content };
+    // Wenn ein Bild angeh√§ngt ist, schicken wir einen mehrteiligen Content-Block
+    // (Bild + Text) im Format, das die Anthropic Messages API erwartet. Ohne
+    // Bild bleibt content weiterhin ein einfacher String wie bisher.
+    const userContent = pendingImage
+      ? [
+          {
+            type: "image",
+            source: { type: "base64", media_type: pendingImage.mediaType, data: pendingImage.base64 },
+          },
+          { type: "text", text: content.trim() || "Schau dir bitte dieses Bild an." },
+        ]
+      : content;
+
+    const userMsg = { role: "user", content: userContent, preview: pendingImage?.preview };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
+    setPendingImage(null);
     setLoading(true);
 
     try {
       const stageLabel = STAGES.find((s) => s.id === stage)?.label;
+      // "preview" ist nur f√ºrs Anzeigen im Browser da (Vorschau-Bild) und muss
+      // nicht mit ans Backend/an die API geschickt werden.
+      const payloadMessages = newMessages.map(({ preview, ...m }) => m);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, stageLabel }),
+        body: JSON.stringify({ messages: payloadMessages, stageLabel }),
       });
       const data = await response.json();
       const reply = data.reply || "Entschuldige, ich konnte gerade nicht antworten.";
@@ -277,7 +352,7 @@ export default function App() {
   }
 
   function selectGroup(g) {
-    // Gruppen mit nur einer Option (Sek II / Lehre) direkt übernehmen,
+    // Gruppen mit nur einer Option (Sek II / Lehre) direkt √ºbernehmen,
     // statt eine Zwischenseite mit nur einem Button zu zeigen.
     if (g.options.length === 1) {
       setStage(g.options[0].id);
@@ -337,7 +412,7 @@ export default function App() {
             </h1>
 
             <button onClick={() => setGroup(null)} className="lumi-back-btn">
-              ← Zurück
+              ‚Üê Zur√ºck
             </button>
 
             <p className="lumi-label">In welchem Schuljahr genau?</p>
@@ -377,14 +452,14 @@ export default function App() {
               }}
               className="lumi-back-btn lumi-header-corner-btn"
             >
-              Stufe ändern
+              Stufe √§ndern
             </button>
           </div>
 
           <div ref={scrollRef} className="lumi-message-area">
             {messages.length === 0 && (
               <div className="lumi-starters">
-                <p className="lumi-label">Worüber möchtest du nachdenken?</p>
+                <p className="lumi-label">Wor√ºber m√∂chtest du nachdenken?</p>
                 <div className="lumi-starters-list">
                   {STARTERS.map((s) => (
                     <button key={s} onClick={() => sendMessage(s)} className="lumi-starter-btn">
@@ -399,6 +474,11 @@ export default function App() {
               <div key={i} className={"lumi-bubble " + (m.role === "user" ? "lumi-bubble-user" : "lumi-bubble-assistant")}>
                 {m.role === "assistant" ? (
                   <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
+                ) : Array.isArray(m.content) ? (
+                  <>
+                    {m.preview && <img src={m.preview} alt="Hochgeladenes Foto" className="lumi-msg-image" />}
+                    {m.content.find((b) => b.type === "text")?.text}
+                  </>
                 ) : (
                   m.content
                 )}
@@ -406,22 +486,55 @@ export default function App() {
             ))}
 
             {loading && (
-              <div className="lumi-bubble lumi-bubble-assistant lumi-bubble-loading">Lumi denkt nach …</div>
+              <div className="lumi-bubble lumi-bubble-assistant lumi-bubble-loading">Lumi denkt nach ‚Ä¶</div>
             )}
           </div>
 
-          <div className="lumi-input-row">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Schreib Lumi etwas …"
-              rows={1}
-              className="lumi-textarea"
-            />
-            <button onClick={() => sendMessage()} disabled={loading} className="lumi-send-btn" aria-label="Senden">
-              →
-            </button>
+          <div className="lumi-input-area">
+            {pendingImage && (
+              <div className="lumi-image-preview">
+                <img src={pendingImage.preview} alt="Vorschau des ausgew√§hlten Fotos" />
+                <button type="button" onClick={removePendingImage} className="lumi-image-remove" aria-label="Foto entfernen">
+                  ‚úï
+                </button>
+              </div>
+            )}
+            {imageError && <p className="lumi-image-error">{imageError}</p>}
+            <div className="lumi-input-row">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                ref={fileInputRef}
+                onChange={handleImageSelect}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="lumi-photo-btn"
+                aria-label="Foto hinzuf√ºgen"
+                disabled={loading}
+              >
+                üì∑
+              </button>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Schreib Lumi etwas ‚Ä¶"
+                rows={1}
+                className="lumi-textarea"
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={loading || (!input.trim() && !pendingImage)}
+                className="lumi-send-btn"
+                aria-label="Senden"
+              >
+                ‚Üí
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -430,8 +543,8 @@ export default function App() {
 }
 
 // Globale Styles (CSS-Variablen, Schriftimport, Keyframes, responsive Regeln).
-// Inline-Styles in React können weder @keyframes noch @media-Queries abbilden,
-// deshalb läuft das gesamte Lumi-Design über dieses eingebettete Stylesheet.
+// Inline-Styles in React k√∂nnen weder @keyframes noch @media-Queries abbilden,
+// deshalb l√§uft das gesamte Lumi-Design √ºber dieses eingebettete Stylesheet.
 function LumiStyles() {
   return (
     <style>{`
@@ -453,7 +566,7 @@ function LumiStyles() {
         min-height: 100vh;
       }
 
-      /* ---------- Glühwürmchen-Hintergrund ---------- */
+      /* ---------- Gl√ºhw√ºrmchen-Hintergrund ---------- */
       .lumi-fireflies {
         position: absolute;
         inset: 0;
@@ -636,9 +749,9 @@ function LumiStyles() {
       #lumiSparkles circle:nth-child(2n) { animation-delay: -0.7s; }
       #lumiSparkles circle:nth-child(3n) { animation-delay: -1.3s; }
 
-      /* Beim Nachdenken: Flügelschlag und Glow-Puls beschleunigen sich leicht,
-         als würde Lumi sichtbar aktiver/konzentrierter werden — ohne die
-         Grundanimationen (Schweben, Blinzeln, Fühler) zu unterbrechen. */
+      /* Beim Nachdenken: Fl√ºgelschlag und Glow-Puls beschleunigen sich leicht,
+         als w√ºrde Lumi sichtbar aktiver/konzentrierter werden ‚Äî ohne die
+         Grundanimationen (Schweben, Blinzeln, F√ºhler) zu unterbrechen. */
       .lumi-character-thinking #lumiLeftWingUpper,
       .lumi-character-thinking #lumiRightWingUpper,
       .lumi-character-thinking #lumiLeftWingLower,
@@ -736,11 +849,74 @@ function LumiStyles() {
       .lumi-bubble-loading {
         color: var(--lumi-muted);
       }
+      .lumi-input-area {
+        margin-top: 12px;
+      }
+      .lumi-image-preview {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 8px;
+      }
+      .lumi-image-preview img {
+        max-height: 90px;
+        max-width: 140px;
+        border-radius: 10px;
+        border: 1px solid rgba(127, 217, 168, 0.3);
+        display: block;
+        object-fit: cover;
+      }
+      .lumi-image-remove {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: none;
+        background: var(--lumi-bg);
+        color: var(--lumi-text);
+        font-size: 11px;
+        line-height: 20px;
+        text-align: center;
+        padding: 0;
+        cursor: pointer;
+      }
+      .lumi-image-error {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: #ff9f8a;
+      }
+      .lumi-msg-image {
+        display: block;
+        max-width: 100%;
+        border-radius: 10px;
+        margin-bottom: 8px;
+      }
       .lumi-input-row {
         display: flex;
         gap: 8px;
-        margin-top: 12px;
         align-items: flex-end;
+      }
+      .lumi-photo-btn {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 1px solid rgba(127, 217, 168, 0.2);
+        background: rgba(22, 36, 58, 0.5);
+        color: var(--lumi-text);
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .lumi-photo-btn:hover {
+        border-color: rgba(255, 184, 77, 0.4);
+      }
+      .lumi-photo-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
       }
       .lumi-textarea {
         flex: 1;
@@ -776,7 +952,7 @@ function LumiStyles() {
         cursor: default;
       }
 
-      /* ---------- Grössere Bildschirme: etwas mehr Luft, nicht mehr Inhalt ---------- */
+      /* ---------- Gr√∂ssere Bildschirme: etwas mehr Luft, nicht mehr Inhalt ---------- */
       @media (min-width: 768px) {
         .lumi-onboarding-inner {
           max-width: 440px;
@@ -788,3 +964,4 @@ function LumiStyles() {
     `}</style>
   );
 }
+
