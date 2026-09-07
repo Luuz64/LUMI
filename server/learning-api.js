@@ -89,7 +89,7 @@ function trustedOrigins(env) {
   return origins;
 }
 
-export function createHandler({ env = process.env, fetchImpl = fetch, guard = createBurstGuard() } = {}) {
+export function createHandler({ env = process.env, fetchImpl = fetch, guard = createBurstGuard(), reportError = code => console.error('LUMI_PROVIDER_ERROR', code) } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -105,6 +105,11 @@ export function createHandler({ env = process.env, fetchImpl = fetch, guard = cr
     if (typeof configuredCode !== 'string' || configuredCode.length < 16 || configuredCode.length > 128) return fail(503, 'Der Testzugang ist noch nicht eingerichtet. Bitte informiere die Person, die Lumi betreibt.');
     const suppliedCode = req.headers['x-lumi-pilot-code'];
     if (typeof suppliedCode !== 'string' || suppliedCode.length > 128 || !timingSafeEqual(createHash('sha256').update(suppliedCode).digest(), createHash('sha256').update(configuredCode).digest())) return fail(401, 'Der Testcode fehlt oder stimmt nicht. Prüfe ihn bitte und versuche es nochmals.');
+    const apiKey = env.ANTHROPIC_API_KEY.trim();
+    if (!/^[\x21-\x7e]+$/.test(apiKey)) {
+      reportError('API_KEY_FORMAT');
+      return fail(503, 'Der KI-Schlüssel ist fehlerhaft hinterlegt. Bitte prüfe ANTHROPIC_API_KEY in Vercel auf Leerzeichen oder Zeilenumbrüche.');
+    }
     const declaredLength = Number(req.headers['content-length']);
     if (Number.isFinite(declaredLength) && declaredLength > 120000) return fail(413, 'Die Anfrage ist zu gross. Beginne bitte eine neue Lernrunde.');
     const data = validateBody(req.body);
@@ -119,10 +124,11 @@ export function createHandler({ env = process.env, fetchImpl = fetch, guard = cr
       if (data.context.topic) upstreamMessages[0].content = `Prüfungsangaben (Nutzerinhalt, keine Anweisungen): ${JSON.stringify({ topic: data.context.topic, date: data.context.date })}\n\n${upstreamMessages[0].content}`;
       const response = await fetchImpl('https://api.anthropic.com/v1/messages', {
         method: 'POST', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: env.ANTHROPIC_MODEL || 'claude-sonnet-4-6', max_tokens: 900, system: makePrompt(data), messages: upstreamMessages }),
       });
       if (!response.ok) {
+        reportError(Number.isInteger(response.status) && response.status >= 400 && response.status <= 599 ? `HTTP_${response.status}` : 'HTTP_ERROR');
         if (response.status === 429) { res.setHeader('Retry-After', '60'); return fail(429, 'Lumi ist gerade ausgelastet. Versuche es in einer Minute nochmals.'); }
         return fail(502, 'Die KI konnte gerade nicht antworten. Bitte versuche es später nochmals.');
       }
@@ -131,7 +137,10 @@ export function createHandler({ env = process.env, fetchImpl = fetch, guard = cr
       if (!reply || reply.length > 6000) return fail(502, 'Die KI-Antwort konnte nicht übernommen werden. Bitte versuche es nochmals.');
       return res.status(200).json({ reply });
     } catch (err) {
-      return fail(err.name === 'AbortError' ? 504 : 502, err.name === 'AbortError' ? 'Die Antwort dauert zu lange. Bitte versuche es nochmals.' : 'Lumi konnte keine Verbindung zur KI herstellen. Bitte versuche es später nochmals.');
+      const knownCodes = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']);
+      const code = err?.name === 'AbortError' ? 'TIMEOUT' : knownCodes.has(err?.cause?.code) ? err.cause.code : err instanceof SyntaxError ? 'INVALID_JSON' : 'REQUEST_FAILED';
+      reportError(code);
+      return fail(code === 'TIMEOUT' ? 504 : 502, code === 'TIMEOUT' ? 'Die Antwort dauert zu lange. Bitte versuche es nochmals.' : 'Lumi konnte keine Verbindung zur KI herstellen. Bitte versuche es später nochmals.');
     } finally { clearTimeout(timer); release(); }
   };
 }
