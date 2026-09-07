@@ -57,3 +57,37 @@ npm run build
 - Die API wurde mit einem Test-Doppel geprüft, nicht mit einem echten Anbieter-Schlüssel. Keine Browser-/Geräteprüfung, kein Penetrationstest, keine rechtliche Zertifizierung durchgeführt.
 
 Siehe `docs/ABNAHME.md` für durchgeführte Tests und die verbleibende Abnahme.
+
+
+## Update: geschützter Erwachsenentest
+
+Der Chat akzeptiert zusätzlich die exakte `VERCEL_BRANCH_URL` aus der
+Vercel-Konfiguration. Fremde Preview-Domains und vom Request gelieferte
+Host-Header werden nicht freigegeben.
+
+Für das Projekt **lumi**, Umgebung **Preview**, Branch
+`feat/lumi-learning-pilot` konfigurieren:
+
+- `LUMI_APP_ORIGIN=https://lumi-git-feat-lumi-learning-pilot-luuz.vercel.app`
+- `ANTHROPIC_API_KEY`: bestehenden Schlüssel nur in Vercel hinterlegen.
+- `LUMI_PILOT_CODE`: zufälliger Code mit 16–128 Zeichen; nur den eingeladenen
+  Erwachsenen mitteilen, kein wiederverwendetes Passwort. Kein `VITE_`-Präfix.
+- `LUMI_AI_ENABLED=true` erst für den beaufsichtigten Erwachsenentest setzen.
+
+Danach neu bereitstellen. Die Website bleibt ohne Vercel-Konto aufrufbar,
+sofern die Vercel Deployment Protection entsprechend eingestellt ist;
+KI-Anfragen benötigen zusätzlich den Testcode. Ohne konfigurierten Code
+bleibt die API geschlossen. Rotation des Codes und erneute Bereitstellung
+entziehen bisherigen Codes den Zugang auf dieser Bereitstellung. Bereits
+existierende alte Bereitstellungen müssen separat geschützt/deaktiviert werden.
+
+Der Code wird nur im Arbeitsspeicher der geöffneten Seite gehalten, beim
+Sitzungsende gelöscht und nicht in Modellanfragen oder Lernzettel übernommen.
+Ein geteilter Code ist keine persönliche Identifikation und kein Kostenlimit.
+Die bestehende Drosselung gilt nur pro Serverinstanz. **Zentrales Kostenlimit,
+separate Eingangs-/Ausgangsprüfung und Datenschutzfreigabe für die Klasse
+stehen weiterhin aus.** Präzisierte Systemanweisungen ersetzen diese Prüfungen
+nicht. Keine echten Schülerdaten verwenden.
+
+Validierung dieses Updates: 14 automatisierte Tests mit simuliertem KI-Anbieter;
+keine kostenpflichtige Modellanfrage und keine neue Browserprüfung.

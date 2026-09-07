@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateBody, createHandler, createBurstGuard, makePrompt } from '../server/learning-api.js';
 const body = () => ({ stage: '5', mode: 'coach', context: { subject: 'Mathematik', topic: '', date: '' }, messages: [{ role: 'user', content: 'Wie kürze ich Brüche?' }] });
-const env = { LUMI_AI_ENABLED: 'true', ANTHROPIC_API_KEY: 'test-only', LUMI_APP_ORIGIN: 'https://lumi.example' };
-const request = (payload = body()) => ({ method: 'POST', headers: { origin: 'https://lumi.example', 'content-type': 'application/json', 'x-real-ip': 'test' }, body: payload });
+const pilotCode = 'only-for-tests-123456789';
+const env = { LUMI_PILOT_CODE: pilotCode, LUMI_AI_ENABLED: 'true', ANTHROPIC_API_KEY: 'test-only', LUMI_APP_ORIGIN: 'https://lumi.example' };
+const request = (payload = body()) => ({ method: 'POST', headers: { origin: 'https://lumi.example', 'content-type': 'application/json', 'x-real-ip': 'test', 'x-lumi-pilot-code': pilotCode }, body: payload });
 function response() { return { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k] = v; }, status(v) { this.statusCode = v; return this; }, json(v) { this.body = v; return this; } }; }
 async function invoke(req, options = {}) { const res = response(); await createHandler({ env, fetchImpl: async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: 'Was haben Zähler und Nenner gemeinsam?' }] }) }), ...options })(req, res); return res; }
 
@@ -57,4 +58,43 @@ test('rate limit becomes a retryable 429 and does not contact provider', async (
   let called = false;
   const r = await invoke(request(), { guard: { take: () => null }, fetchImpl: async () => { called = true; } });
   assert.equal(r.statusCode, 429); assert.equal(r.headers['Retry-After'], '60'); assert.equal(called, false);
+});
+
+
+test('the exact branch alias is accepted; spoofed hosts and unrelated previews are rejected', async () => {
+  const config = { ...env, VERCEL_BRANCH_URL: 'lumi-git-feature-luuz.vercel.app' };
+  for (const [origin, status] of [
+    ['https://lumi-git-feature-luuz.vercel.app', 200],
+    ['https://unrelated.vercel.app', 403],
+    ['https://lumi-git-feature-luuz.vercel.app.attacker.example', 403],
+    ['http://lumi-git-feature-luuz.vercel.app', 403],
+    ['null', 403],
+  ]) {
+    const req = request(); req.headers.origin = origin;
+    req.headers.host = 'lumi-git-feature-luuz.vercel.app';
+    req.headers['x-forwarded-host'] = 'lumi-git-feature-luuz.vercel.app';
+    assert.equal((await invoke(req, { env: config })).statusCode, status);
+  }
+});
+
+test('missing, wrong and oversized pilot codes never reach the provider', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; throw new Error('must not call'); };
+  for (const code of [undefined, '', 'wrong', 'x'.repeat(129), ['invalid']]) {
+    const req = request(); req.headers['x-lumi-pilot-code'] = code;
+    assert.equal((await invoke(req, { fetchImpl })).statusCode, 401);
+  }
+  for (const code of [undefined, '', 'short', 'x'.repeat(129)]) {
+    assert.equal((await invoke(request(), { env: { ...env, LUMI_PILOT_CODE: code }, fetchImpl })).statusCode, 503);
+  }
+  assert.equal(calls, 0);
+});
+
+test('pilot credential is not forwarded to the model or returned to the browser', async () => {
+  const result = await invoke(request(), { fetchImpl: async (_url, options) => {
+    assert.equal(JSON.stringify(options).includes(pilotCode), false);
+    return { ok: true, json: async () => ({ content: [{ type: 'text', text: 'Welchen Schritt möchtest du üben?' }] }) };
+  } });
+  assert.equal(result.statusCode, 200);
+  assert.equal(JSON.stringify(result).includes(pilotCode), false);
 });
