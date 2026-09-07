@@ -1,790 +1,213 @@
-import React, { useState, useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import LumiCharacter from './components/LumiCharacter';
+import { STAGES, SUBJECTS, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation } from './learning';
+import './styles.css';
+import './mascot.css';
 
-const STAGE_GROUPS = [
-  {
-    id: "primar",
-    label: "Primarstufe",
-    desc: "1.–6. Schuljahr",
-    options: [
-      { id: "1", label: "1. Schuljahr" },
-      { id: "2", label: "2. Schuljahr" },
-      { id: "3", label: "3. Schuljahr" },
-      { id: "4", label: "4. Schuljahr" },
-      { id: "5", label: "5. Schuljahr" },
-      { id: "6", label: "6. Schuljahr" },
-    ],
-  },
-  {
-    id: "ober",
-    label: "Oberstufe / Sek I",
-    desc: "7.–9. Schuljahr",
-    options: [
-      { id: "7", label: "7. Schuljahr" },
-      { id: "8", label: "8. Schuljahr" },
-      { id: "9", label: "9. Schuljahr" },
-    ],
-  },
-  {
-    id: "sek2group",
-    label: "Sek II / Lehre",
-    desc: "Gymi, Berufslehre, FMS, ...",
-    options: [{ id: "sek2", label: "Sek II / Lehre" }],
-  },
-];
+function Icon({ name, size = 22, ...props }) {
+  const paths = {
+    spark: <><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z" /></>,
+    book: <><path d="M12 5v15M3 4c4-1 6 0 9 2 3-2 5-3 9-2v14c-4-1-6 0-9 2-3-2-5-3-9-2Z" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2" /></>,
+    note: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8m-8 4h5" /></>,
+    shield: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" /><path d="m8 12 3 3 5-6" /></>,
+    arrow: <><path d="M5 12h14m-6-6 6 6-6 6" /></>,
+    send: <><path d="m4 11 8-8 8 8M12 3v18" /></>,
+    download: <><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></>,
+    upload: <><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" /></>,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    reset: <><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" /></>,
+    copy: <><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M15 8V3H3v13h5" /></>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths[name] || paths.spark}</svg>;
+}
 
-// Flache Liste aller Endauswahl-Optionen, damit Lookup per id weiterhin einfach bleibt
-const STAGES = STAGE_GROUPS.flatMap((g) => g.options);
+const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === 'true';
 
 const STARTERS = [
-  "Ich verstehe diese Matheaufgabe nicht",
-  "Wie schreibe ich einen guten Aufsatz?",
-  "Was bedeutet eigentlich Photosynthese?",
-  "Ich habe Stress mit einer Freundschaft",
+  { subject: 'Mathematik', title: 'Brüche endlich verstehen', text: 'Ich möchte Brüche besser verstehen. Finde bitte zuerst heraus, was ich schon kann.', symbol: '½', color: 'blue' },
+  { subject: 'Deutsch', title: 'Ideen in Worte verwandeln', text: 'Ich möchte selbst einen guten Text schreiben. Hilf mir, meine Ideen zu ordnen.', symbol: 'Aa', color: 'pink' },
+  { subject: 'Natur, Mensch, Gesellschaft', title: 'Der Natur auf der Spur', text: 'Ich möchte verstehen, wie Pflanzen wachsen. Beginne mit einer Frage zu meinem Vorwissen.', symbol: 'N', color: 'green' },
+];
+const HELP = [
+  { mode: 'hint', label: 'Ein kleiner Hinweis', text: 'Gib mir bitte einen kleinen Hinweis zum aktuellen Schritt, ohne ihn für mich zu lösen.' },
+  { mode: 'example', label: 'Ein ähnliches Beispiel', text: 'Zeige mir bitte den Denkweg an einem anderen Beispiel. Danach versuche ich meine Aufgabe selbst.' },
+  { mode: 'check', label: 'Teste mein Verständnis', text: 'Gib mir bitte eine neue kurze Aufgabe zum Thema, damit ich selbst prüfen kann, ob ich es verstanden habe. Warte auf meinen Versuch.' },
 ];
 
-// Anzahl Glühwürmchen im Hintergrund. Bewusst klein gehalten (siehe Design-
-// Feedback "zu überfüllt") und nur als ruhiges Ambiente, nie als Hauptfokus.
-const FIREFLY_COUNT = 9;
-
-// Schlanke Komponenten-Zuordnung, damit Markdown-Elemente (fett, Listen, Absätze)
-// ohne unschöne Extra-Abstände in die Chat-Bubble passen.
-const markdownComponents = {
-  p: ({ children }) => <p style={{ margin: "0 0 6px" }}>{children}</p>,
-  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
-  em: ({ children }) => <em>{children}</em>,
-  ul: ({ children }) => <ul style={{ margin: "4px 0 6px", paddingLeft: 20 }}>{children}</ul>,
-  ol: ({ children }) => <ol style={{ margin: "4px 0 6px", paddingLeft: 20 }}>{children}</ol>,
-  li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
-};
-
-// Feste, einmalig berechnete Zufallspositionen für die Glühwürmchen, damit sie
-// nicht bei jedem Re-Render (z.B. während des Tippens) neu gewürfelt werden
-// und dadurch sichtbar "springen".
-const FIREFLIES = Array.from({ length: FIREFLY_COUNT }, () => ({
-  left: Math.random() * 100,
-  top: Math.random() * 100,
-  size: 2 + Math.random() * 2,
-  green: Math.random() > 0.6,
-  duration: 5 + Math.random() * 6,
-  delay: Math.random() * 5,
-}));
-
-function FireflyField() {
-  return (
-    <div className="lumi-fireflies" aria-hidden="true">
-      {FIREFLIES.map((f, i) => (
-        <span
-          key={i}
-          className="lumi-firefly"
-          style={{
-            left: f.left + "%",
-            top: f.top + "%",
-            width: f.size,
-            height: f.size,
-            background: f.green ? "var(--lumi-green)" : "var(--lumi-gold)",
-            animationDuration: f.duration + "s",
-            animationDelay: f.delay + "s",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// Feste Mini-Positionen für Lumis Schwarm-Charakter im Header. Anders als das
-// grossflächige Hintergrund-Ambiente (FireflyField) ist dies ein kompaktes,
-// wiedererkennbares "Wesen" — Lumi besteht selbst aus mehreren Lichtpunkten,
-// die sich locker zu einer Form halten statt einzeln zu verstreuen.
-const SWARM_DOTS = Array.from({ length: 7 }, (_, i) => {
-  const angle = (i / 7) * Math.PI * 2;
-  return {
-    baseX: Math.cos(angle) * 6,
-    baseY: Math.sin(angle) * 6,
-    size: 2.5 + Math.random() * 1.5,
-    green: i % 3 === 0,
-    delay: Math.random() * 2,
-  };
-});
-
-// Lumi als eigener Charakter: ein kleiner, in sich gehaltener Schwarm aus
-// Lichtpunkten. Reagiert auf "thinking" (= Antwort wird gerade verarbeitet),
-// indem sich die Punkte enger zusammenziehen und heller werden — als würde
-// sich das Licht für einen Moment konzentrieren.
-function LumiSwarm({ thinking }) {
-  return (
-    <div className={"lumi-swarm" + (thinking ? " lumi-swarm-thinking" : "")} aria-hidden="true">
-      {SWARM_DOTS.map((d, i) => {
-        const dotColor = d.green ? "var(--lumi-green)" : "var(--lumi-gold)";
-        return (
-          <span
-            key={i}
-            className="lumi-swarm-dot"
-            style={{
-              "--base-x": d.baseX + "px",
-              "--base-y": d.baseY + "px",
-              width: d.size,
-              height: d.size,
-              background: dotColor,
-              color: dotColor,
-              animationDelay: d.delay + "s",
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-// Lumi als animiertes Inline-SVG (von Luca selbst per ChatGPT generierter Code).
-// Inline statt <img src="..."> eingebunden, weil eingebettete SVG-Animationen
-// in <img>-Tags je nach Browser unzuverlässig abspielen — als direktes JSX-
-// Markup laufen die @keyframes-Animationen garantiert in jedem Browser.
-// "thinking" beschleunigt den Flügelschlag/Glow leicht, ohne die Grundanimation
-// zu ersetzen, damit Lumi beim Nachdenken sichtbar "aktiver" wirkt.
-function LumiCharacter({ thinking, size }) {
-  return (
-    <div className={"lumi-character" + (thinking ? " lumi-character-thinking" : "")} style={{ width: size, height: size }}>
-      <svg viewBox="0 0 720 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LUMI, ein freundliches leuchtendes Glühwürmchen">
-        <defs>
-          <radialGradient id="lumiBodyGrad" cx="36%" cy="22%" r="78%">
-            <stop offset="0%" stopColor="#30486e" />
-            <stop offset="45%" stopColor="#16243a" />
-            <stop offset="100%" stopColor="#07101e" />
-          </radialGradient>
-          <radialGradient id="lumiFaceGrad" cx="45%" cy="22%" r="70%">
-            <stop offset="0%" stopColor="#1c3150" />
-            <stop offset="100%" stopColor="#050b15" />
-          </radialGradient>
-          <radialGradient id="lumiBellyGrad" cx="45%" cy="18%" r="75%">
-            <stop offset="0%" stopColor="#fff3a3" />
-            <stop offset="42%" stopColor="#ffd15c" />
-            <stop offset="100%" stopColor="#ff9f26" />
-          </radialGradient>
-          <radialGradient id="lumiWingGrad" cx="38%" cy="30%" r="72%">
-            <stop offset="0%" stopColor="#f7fff7" stopOpacity=".76" />
-            <stop offset="42%" stopColor="#7fd9a8" stopOpacity=".45" />
-            <stop offset="100%" stopColor="#ffcf66" stopOpacity=".18" />
-          </radialGradient>
-          <radialGradient id="lumiTipGrad" cx="42%" cy="35%" r="65%">
-            <stop offset="0%" stopColor="#fff7c6" />
-            <stop offset="55%" stopColor="#ffcf66" />
-            <stop offset="100%" stopColor="#ffb84d" />
-          </radialGradient>
-          <filter id="lumiSoftGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="18" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.72 0 0 .55  0 0 0.2 0 .12  0 0 0 .75 0" result="gold" />
-            <feMerge><feMergeNode in="gold" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <filter id="lumiWingGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <filter id="lumiShadow" x="-80%" y="-80%" width="260%" height="260%">
-            <feDropShadow dx="0" dy="18" stdDeviation="20" floodColor="#000000" floodOpacity=".34" />
-          </filter>
-        </defs>
-        <g id="lumiSparkles" opacity=".9">
-          <circle cx="134" cy="186" r="4" fill="#ffcf66" /><circle cx="590" cy="192" r="3" fill="#7fd9a8" />
-          <circle cx="615" cy="506" r="5" fill="#ffcf66" /><circle cx="112" cy="504" r="3" fill="#7fd9a8" />
-          <circle cx="548" cy="404" r="2.8" fill="#ffcf66" /><circle cx="182" cy="404" r="2.8" fill="#fff3a3" />
-          <circle cx="644" cy="318" r="3.2" fill="#fff3a3" /><circle cx="82" cy="320" r="3.2" fill="#7fd9a8" />
-          <circle cx="480" cy="139" r="2.5" fill="#ffcf66" /><circle cx="247" cy="143" r="2.5" fill="#7fd9a8" />
-        </g>
-        <ellipse cx="360" cy="590" rx="110" ry="23" fill="#050b15" opacity=".45" filter="url(#lumiShadow)" />
-        <g id="lumiBody" filter="url(#lumiShadow)">
-          <g id="lumiWings" filter="url(#lumiWingGlow)">
-            <path id="lumiLeftWingUpper" d="M300 365 C206 244 118 227 87 298 C58 364 151 420 301 389 C312 386 310 379 300 365Z" fill="url(#lumiWingGrad)" stroke="#ffcf66" strokeOpacity=".75" strokeWidth="4" />
-            <path id="lumiRightWingUpper" d="M420 365 C514 244 602 227 633 298 C662 364 569 420 419 389 C408 386 410 379 420 365Z" fill="url(#lumiWingGrad)" stroke="#ffcf66" strokeOpacity=".75" strokeWidth="4" />
-            <path id="lumiLeftWingLower" d="M305 402 C214 395 158 443 182 493 C208 548 289 510 331 423 C335 414 324 405 305 402Z" fill="url(#lumiWingGrad)" stroke="#7fd9a8" strokeOpacity=".45" strokeWidth="3" />
-            <path id="lumiRightWingLower" d="M415 402 C506 395 562 443 538 493 C512 548 431 510 389 423 C385 414 396 405 415 402Z" fill="url(#lumiWingGrad)" stroke="#7fd9a8" strokeOpacity=".45" strokeWidth="3" />
-            <path d="M155 322 C206 334 250 354 295 379" stroke="#d8ffe5" strokeOpacity=".38" strokeWidth="3" strokeLinecap="round" />
-            <path d="M565 322 C514 334 470 354 425 379" stroke="#d8ffe5" strokeOpacity=".38" strokeWidth="3" strokeLinecap="round" />
-          </g>
-          <g id="lumiAntennae" stroke="#16243a" strokeWidth="12" strokeLinecap="round">
-            <path id="lumiAntennaLeft" d="M322 221 C301 174 265 156 224 154" />
-            <path id="lumiAntennaRight" d="M398 221 C419 174 455 156 496 154" />
-            <circle cx="221" cy="154" r="26" fill="url(#lumiTipGrad)" stroke="#ffcf66" strokeWidth="4" filter="url(#lumiSoftGlow)" />
-            <circle cx="499" cy="154" r="26" fill="url(#lumiTipGrad)" stroke="#ffcf66" strokeWidth="4" filter="url(#lumiSoftGlow)" />
-          </g>
-          <ellipse cx="360" cy="326" rx="150" ry="135" fill="url(#lumiBodyGrad)" />
-          <ellipse cx="360" cy="342" rx="118" ry="82" fill="url(#lumiFaceGrad)" stroke="#253c60" strokeWidth="3" opacity=".98" />
-          <ellipse id="lumiEyes" cx="320" cy="333" rx="11" ry="31" fill="#fffdf4" />
-          <ellipse cx="400" cy="333" rx="11" ry="31" fill="#fffdf4" />
-          <path d="M241 287 C280 207 385 177 464 236" stroke="#ffffff" strokeWidth="10" strokeLinecap="round" opacity=".09" />
-          <ellipse cx="360" cy="446" rx="86" ry="86" fill="url(#lumiBodyGrad)" />
-          <g id="lumiBellyGlow" filter="url(#lumiSoftGlow)">
-            <path d="M271 458 C285 551 435 551 449 458 C422 502 298 502 271 458Z" fill="url(#lumiBellyGrad)" />
-            <path d="M286 492 C320 512 398 512 434 492" stroke="#fff3a3" strokeOpacity=".45" strokeWidth="3" strokeLinecap="round" />
-          </g>
-          <ellipse cx="283" cy="433" rx="24" ry="31" fill="url(#lumiBodyGrad)" transform="rotate(-22 283 433)" />
-          <ellipse cx="437" cy="433" rx="24" ry="31" fill="url(#lumiBodyGrad)" transform="rotate(22 437 433)" />
-        </g>
-      </svg>
-    </div>
-  );
-}
-
 export default function App() {
-  const [group, setGroup] = useState(null);
-  const [stage, setStage] = useState(null);
+  const [pilotCode, setPilotCode] = useState('');
+  const [view, setView] = useState('learn');
+  const [stage, setStage] = useState('5');
+  const [exam, setExam] = useState({ ...EMPTY_EXAM });
+  const [notes, setNotes] = useState({ ...EMPTY_NOTES });
+  const [session, setSession] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef(null);
+  const [error, setError] = useState('');
+  const [failed, setFailed] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [motion, setMotion] = useState(true);
+  const requestRef = useRef(null);
+  const generation = useRef(0);
+  const bottomRef = useRef(null);
+  const privacyRef = useRef(null);
+  const importRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+  }, [messages, loading, error]);
+  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => {
+    const warn = e => { if (messages.length || Object.values(notes).some(Boolean) || exam.topic || input) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [messages.length, notes, exam, input]);
+  useEffect(() => { if (notice) { const t = setTimeout(() => setNotice(''), 5000); return () => clearTimeout(t); } }, [notice]);
+
+  function stopRequest() {
+    generation.current += 1;
+    requestRef.current?.abort(); requestRef.current = null;
+    setLoading(false);
+  }
+  function clearChat() { stopRequest(); setMessages([]); setError(''); setFailed(null); setInput(''); }
+  function resetAll() {
+    if (!window.confirm('Diese Sitzung beenden? Chat, Prüfung und Notizen werden aus dieser Seite entfernt. Lade deinen Lernzettel vorher herunter. Bereits übermittelte Daten beim KI-Anbieter werden dadurch nicht gelöscht.')) return;
+    setPilotCode('');
+    clearChat(); setSession(null); setExam({ ...EMPTY_EXAM }); setNotes({ ...EMPTY_NOTES }); setStage('5'); setView('learn');
+    setNotice('Die Sitzung auf dieser Seite ist beendet.');
+  }
+  function newTopic() {
+    if (messages.length && !window.confirm('Ein neues Thema beginnen? Der bisherige Chat wird aus dieser Seite entfernt. Dein Lernzettel bleibt.')) return;
+    clearChat(); setSession(null); setView('learn');
+  }
+
+  async function send(text, mode = 'coach', retry = false, overrideSession = null) {
+    const content = (text ?? input).trim();
+    if (!content || requestRef.current) return;
+    if (!LOCAL_PREVIEW && !pilotCode.trim()) { setError('Trage bitte zuerst deinen Testcode ein. Deine Nachricht wurde noch nicht gesendet.'); return; }
+    if (content.length > 4000) { setError('Teile deine Aufgabe bitte in kleinere Abschnitte (höchstens 4000 Zeichen).'); return; }
+    const current = overrideSession || session || { stage, subject: exam.subject, topic: '', date: '' };
+    const nextMessages = retry ? messages : [...messages, { role: 'user', content }];
+    if (nextMessages.length > 25 || nextMessages.reduce((n, m) => n + m.content.length, 0) > 26000) {
+      setError('Diese Lernrunde ist voll. Nimm das Wichtigste in deinen Lernzettel auf und beginne ein neues Thema.'); return;
     }
-  }, [messages, loading]);
-
-  async function sendMessage(text) {
-    const content = text !== undefined ? text : input;
-    if (!content.trim() || loading) return;
-
-    const userMsg = { role: "user", content };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput("");
-    setLoading(true);
-
+    setSession(current); setMessages(nextMessages); setInput(''); setError(''); setFailed(null); setLoading(true); setView('learn');
+    const controller = new AbortController(); requestRef.current = controller;
+    const requestId = ++generation.current;
+    const timer = setTimeout(() => controller.abort(), 35000);
     try {
-      const stageLabel = STAGES.find((s) => s.id === stage)?.label;
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, stageLabel }),
+      if (LOCAL_PREVIEW) throw new Error('Diese Designvorschau hat keine KI-Verbindung. Prüfung und Lernzettel kannst du bereits ausprobieren.');
+      const response = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lumi-Pilot-Code': pilotCode.trim() }, signal: controller.signal,
+        body: JSON.stringify({ messages: nextMessages, stage: current.stage, mode, context: { subject: current.subject, topic: current.topic, date: current.date } }),
       });
-      const data = await response.json();
-      const reply = data.reply || "Entschuldige, ich konnte gerade nicht antworten.";
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Lumi ist gerade nicht erreichbar. Bitte versuche es später noch einmal.');
+      if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Es kam keine Antwort an. Bitte versuche es noch einmal.');
+      if (requestId === generation.current) setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Es gab ein Verbindungsproblem. Magst du es nochmal versuchen?" },
-      ]);
+      if (requestId === generation.current) {
+        setError(err.name === 'AbortError' ? 'Die Antwort dauert gerade zu lange. Du kannst es nochmals versuchen.' : err.message);
+        setFailed({ text: content, mode });
+      }
     } finally {
-      setLoading(false);
+      clearTimeout(timer);
+      if (requestId === generation.current) { requestRef.current = null; setLoading(false); }
     }
   }
-
-  function handleKeyDown(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  function startExam(e) {
+    e.preventDefault();
+    if (messages.length && !window.confirm('Eine neue Prüfungsrunde starten? Dein bisheriger Chat wird aus dieser Seite entfernt. Notizen bleiben.')) return;
+    clearChat();
+    const current = { ...exam, stage };
+    setSession(current);
+    // Use an explicit fresh history; React state updates have not committed yet.
+    setView('learn');
+    setInput(`Ich bereite mich auf ${exam.topic.trim()} vor. Bitte finde mit einer Frage heraus, was ich schon verstehe.`);
+    setNotice('Deine Prüfungsrunde ist bereit. Sende deine erste Nachricht an Lumi.');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+  async function loadSheet(e) {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      if (file.size > MAX_IMPORT_BYTES) throw new Error('Dieser Lernzettel ist zu gross.');
+      const sheet = readLearningSheet(await file.text());
+      if ((messages.length || Object.values(notes).some(Boolean) || exam.topic) && !window.confirm('Lernzettel laden? Die aktuelle Sitzung und deine bisherigen Notizen werden ersetzt.')) return;
+      clearChat(); setStage(sheet.stage); setExam(sheet.exam); setNotes(sheet.notes); setSession(null); setView('notes');
+      setNotice('Lernzettel geladen. Er wurde nicht an die KI gesendet.');
+    } catch (err) { setNotice(err.message); }
+  }
+  function download() {
+    const blob = new Blob([JSON.stringify(makeLearningSheet(stage, exam, notes), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = 'mein-lumi-lernzettel.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setNotice('Lernzettel heruntergeladen. Bewahre ihn an deinem eigenen Speicherort auf.');
+  }
+  async function copyNotes() {
+    try { await navigator.clipboard.writeText(sheetAsText(stage, exam, notes)); setNotice('Lernzettel kopiert.'); }
+    catch { setNotice('Kopieren ist hier nicht möglich. Du kannst den Lernzettel herunterladen.'); }
+  }
+  function continueLearning() {
+    if (messages.length && !window.confirm('Mit dem Lernzettel eine neue Runde beginnen? Der bisherige Chat wird aus dieser Seite entfernt.')) return;
+    clearChat(); setSession({ ...exam, stage }); setInput(buildContinuation(notes)); setView('learn');
+    setNotice('Prüfe den Text vor dem Senden. Erst dann gehen diese Notizen an die KI.');
+    setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  function selectGroup(g) {
-    // Gruppen mit nur einer Option (Sek II / Lehre) direkt übernehmen,
-    // statt eine Zwischenseite mit nur einem Button zu zeigen.
-    if (g.options.length === 1) {
-      setStage(g.options[0].id);
-    } else {
-      setGroup(g.id);
-    }
-  }
-
-  if (!stage) {
-    const activeGroup = STAGE_GROUPS.find((g) => g.id === group);
-
-    if (!activeGroup) {
-      return (
-        <div className="lumi-root">
-          <LumiStyles />
-          <div className="lumi-onboarding">
-            <FireflyField />
-            <div className="lumi-onboarding-inner">
-              <div className="lumi-onboarding-character">
-                <LumiCharacter thinking={false} size={150} />
-              </div>
-              <h1 className="lumi-hero">
-                Dein Licht
-                <br />
-                zum Denken.
-              </h1>
-              <p className="lumi-subtitle">
-                Nicht die Antwort geben, sondern beim Denken begleiten.
-              </p>
-
-              <p className="lumi-label">In welcher Schulstufe bist du?</p>
-
-              <div className="lumi-stage-list">
-                {STAGE_GROUPS.map((g) => (
-                  <button key={g.id} onClick={() => selectGroup(g)} className="lumi-stage-btn">
-                    <span className="lumi-stage-btn-title">{g.label}</span>
-                    <span className="lumi-stage-btn-desc">{g.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="lumi-root">
-        <LumiStyles />
-        <div className="lumi-onboarding">
-          <FireflyField />
-          <div className="lumi-onboarding-inner">
-            <h1 className="lumi-hero lumi-hero-small">
-              Dein Licht
-              <br />
-              zum Denken.
-            </h1>
-
-            <button onClick={() => setGroup(null)} className="lumi-back-btn">
-              ← Zurück
-            </button>
-
-            <p className="lumi-label">In welchem Schuljahr genau?</p>
-
-            <div className="lumi-stage-list">
-              {activeGroup.options.map((s) => (
-                <button key={s.id} onClick={() => setStage(s.id)} className="lumi-stage-btn">
-                  <span className="lumi-stage-btn-title">{s.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+  const currentStage = STAGES.find(s => s.id === (session?.stage || stage))?.label;
+  return <div className={`app ${motion ? '' : 'motion-off'}`}>
+    <a className="skip-link" href="#main">Zum Lernbereich</a>
+    <aside className="sidebar">
+      <button className="brand" onClick={() => setView('learn')} aria-label="Lumi Lernbereich"><span className="brand-light">✦</span><span>LUMI<span className="brand-dot">.</span></span></button>
+      <div className="sidebar-intro">Dein Licht zum Denken.</div>
+      <nav aria-label="Hauptnavigation">
+        {[['learn', 'book', 'Mit Lumi lernen'], ['exam', 'calendar', 'Meine Prüfung'], ['notes', 'note', 'Mein Lernzettel']].map(([id, icon, label]) =>
+          <button key={id} className={`nav-item ${view === id ? 'active' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}><Icon name={icon} /><span>{label}</span>{view === id && <span className="nav-mark" />}</button>)}
+      </nav>
+      <div className="sidebar-bottom">
+        <div className="session-card"><Icon name="shield" /><strong>Nur diese Sitzung</strong><p>Dein Lernverlauf bleibt nicht dauerhaft in dieser App.</p><button onClick={() => privacyRef.current.showModal()}>Was passiert mit meinen Daten?</button></div>
+        <button className="sidebar-action" onClick={resetAll}><Icon name="reset" size={18} /> Sitzung beenden</button>
+        <span className="pilot-label">LUMI · Entwicklungsversion</span>
       </div>
-    );
-  }
-
-  return (
-    <div className="lumi-root">
-      <LumiStyles />
-      <div className="lumi-chat">
-        <FireflyField />
-        <div className="lumi-chat-inner">
-          <div className="lumi-header">
-            <div className="lumi-header-character">
-              <LumiCharacter thinking={loading} size={140} />
-            </div>
-            <div className="lumi-header-text">
-              <p className="lumi-header-title">LUMI</p>
-              <p className="lumi-header-subtitle">{STAGES.find((s) => s.id === stage)?.label}</p>
-            </div>
-            <button
-              onClick={() => {
-                setStage(null);
-                setGroup(null);
-                setMessages([]);
-              }}
-              className="lumi-back-btn lumi-header-corner-btn"
-            >
-              Stufe ändern
-            </button>
-          </div>
-
-          <div ref={scrollRef} className="lumi-message-area">
-            {messages.length === 0 && (
-              <div className="lumi-starters">
-                <p className="lumi-label">Worüber möchtest du nachdenken?</p>
-                <div className="lumi-starters-list">
-                  {STARTERS.map((s) => (
-                    <button key={s} onClick={() => sendMessage(s)} className="lumi-starter-btn">
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div key={i} className={"lumi-bubble " + (m.role === "user" ? "lumi-bubble-user" : "lumi-bubble-assistant")}>
-                {m.role === "assistant" ? (
-                  <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
-                ) : (
-                  m.content
-                )}
-              </div>
-            ))}
-
-            {loading && (
-              <div className="lumi-bubble lumi-bubble-assistant lumi-bubble-loading">Lumi denkt nach …</div>
-            )}
-          </div>
-
-          <div className="lumi-input-row">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Schreib Lumi etwas …"
-              rows={1}
-              className="lumi-textarea"
-            />
-            <button onClick={() => sendMessage()} disabled={loading} className="lumi-send-btn" aria-label="Senden">
-              →
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Globale Styles (CSS-Variablen, Schriftimport, Keyframes, responsive Regeln).
-// Inline-Styles in React können weder @keyframes noch @media-Queries abbilden,
-// deshalb läuft das gesamte Lumi-Design über dieses eingebettete Stylesheet.
-function LumiStyles() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
-
-      :root {
-        --lumi-bg: #0b1320;
-        --lumi-surface: #16243a;
-        --lumi-gold: #ffb84d;
-        --lumi-green: #7fd9a8;
-        --lumi-text: #f4f1e8;
-        --lumi-muted: #5a6b7a;
-      }
-
-      .lumi-root {
-        font-family: 'Inter', system-ui, sans-serif;
-        background: var(--lumi-bg);
-        color: var(--lumi-text);
-        min-height: 100vh;
-      }
-
-      /* ---------- Glühwürmchen-Hintergrund ---------- */
-      .lumi-fireflies {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        overflow: hidden;
-      }
-      .lumi-firefly {
-        position: absolute;
-        border-radius: 50%;
-        opacity: 0.3;
-        animation-name: lumi-firefly-float;
-        animation-timing-function: ease-in-out;
-        animation-iteration-count: infinite;
-      }
-      @keyframes lumi-firefly-float {
-        0%, 100% { transform: translate(0, 0); opacity: 0.25; }
-        25% { transform: translate(8px, -12px); opacity: 0.55; }
-        50% { transform: translate(-6px, -6px); opacity: 0.3; }
-        75% { transform: translate(10px, 8px); opacity: 0.5; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .lumi-firefly { animation: none !important; }
-      }
-
-      /* ---------- Onboarding ---------- */
-      .lumi-onboarding {
-        position: relative;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem 1.5rem;
-        box-sizing: border-box;
-      }
-      .lumi-onboarding-inner {
-        position: relative;
-        z-index: 2;
-        width: 100%;
-        max-width: 400px;
-        text-align: center;
-      }
-      .lumi-onboarding-character {
-        margin: 0 auto 8px;
-        width: 150px;
-        height: 150px;
-      }
-      .lumi-hero {
-        font-family: 'Fraunces', serif;
-        font-weight: 600;
-        font-size: clamp(24px, 5.5vw, 32px);
-        line-height: 1.25;
-        letter-spacing: -0.3px;
-        margin: 0 0 10px;
-        color: var(--lumi-text);
-      }
-      .lumi-hero-small {
-        font-size: clamp(20px, 4vw, 24px);
-        margin-bottom: 20px;
-      }
-      .lumi-subtitle {
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--lumi-muted);
-        margin: 0 0 clamp(18px, 3.5vh, 28px);
-      }
-      .lumi-label {
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: 0.4px;
-        color: var(--lumi-green);
-        margin: 0 0 14px;
-      }
-      .lumi-stage-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .lumi-stage-btn {
-        text-align: left;
-        padding: 14px 16px;
-        border-radius: 12px;
-        border: 1px solid rgba(127, 217, 168, 0.2);
-        background: rgba(22, 36, 58, 0.5);
-        color: var(--lumi-text);
-        cursor: pointer;
-        font-family: inherit;
-        font-size: 14px;
-        font-weight: 500;
-        transition: border-color 0.15s, background 0.15s;
-      }
-      .lumi-stage-btn:hover {
-        border-color: rgba(255, 184, 77, 0.4);
-        background: rgba(255, 184, 77, 0.08);
-      }
-      .lumi-stage-btn:focus-visible {
-        outline: 2px solid var(--lumi-gold);
-        outline-offset: 2px;
-      }
-      .lumi-stage-btn-title {
-        display: block;
-      }
-      .lumi-stage-btn-desc {
-        display: block;
-        font-size: 11px;
-        font-weight: 400;
-        color: var(--lumi-muted);
-        margin-top: 2px;
-      }
-      .lumi-back-btn {
-        font-family: inherit;
-        font-size: 12px;
-        padding: 6px 12px;
-        border-radius: 8px;
-        border: 1px solid rgba(127, 217, 168, 0.2);
-        background: transparent;
-        color: var(--lumi-muted);
-        cursor: pointer;
-        margin-bottom: 18px;
-      }
-      .lumi-back-btn:hover {
-        color: var(--lumi-text);
-        border-color: rgba(127, 217, 168, 0.4);
-      }
-
-      /* ---------- Chat ---------- */
-      .lumi-chat {
-        position: relative;
-        min-height: 100vh;
-      }
-      .lumi-chat-inner {
-        position: relative;
-        z-index: 2;
-        max-width: 640px;
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        padding: 1rem 1.25rem;
-        box-sizing: border-box;
-      }
-      .lumi-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        padding-bottom: 14px;
-        border-bottom: 1px solid rgba(127, 217, 168, 0.15);
-        margin-bottom: 12px;
-        position: relative;
-      }
-      .lumi-header-character {
-        margin-bottom: 6px;
-      }
-      .lumi-character {
-        position: relative;
-        display: block;
-      }
-      .lumi-character svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      #lumiBody {
-        transform-origin: 360px 360px;
-        animation: lumi-float 3.6s ease-in-out infinite;
-      }
-      #lumiLeftWingUpper { transform-origin: 288px 365px; animation: lumi-flap-left-up 0.42s ease-in-out infinite; }
-      #lumiRightWingUpper { transform-origin: 432px 365px; animation: lumi-flap-right-up 0.42s ease-in-out infinite; }
-      #lumiLeftWingLower { transform-origin: 296px 405px; animation: lumi-flap-left-low 0.42s ease-in-out infinite; }
-      #lumiRightWingLower { transform-origin: 424px 405px; animation: lumi-flap-right-low 0.42s ease-in-out infinite; }
-      #lumiBellyGlow { transform-origin: 360px 488px; animation: lumi-pulse-glow 2.4s ease-in-out infinite; }
-      #lumiAntennaLeft, #lumiAntennaRight {
-        transform-box: fill-box;
-        transform-origin: bottom center;
-        animation: lumi-antenna-wiggle 2.8s ease-in-out infinite;
-      }
-      #lumiAntennaRight { animation-delay: -0.6s; }
-      #lumiEyes { animation: lumi-blink 6s infinite; transform-origin: 360px 338px; }
-      #lumiSparkles circle { animation: lumi-twinkle 2.2s ease-in-out infinite; }
-      #lumiSparkles circle:nth-child(2n) { animation-delay: -0.7s; }
-      #lumiSparkles circle:nth-child(3n) { animation-delay: -1.3s; }
-
-      /* Beim Nachdenken: Flügelschlag und Glow-Puls beschleunigen sich leicht,
-         als würde Lumi sichtbar aktiver/konzentrierter werden — ohne die
-         Grundanimationen (Schweben, Blinzeln, Fühler) zu unterbrechen. */
-      .lumi-character-thinking #lumiLeftWingUpper,
-      .lumi-character-thinking #lumiRightWingUpper,
-      .lumi-character-thinking #lumiLeftWingLower,
-      .lumi-character-thinking #lumiRightWingLower {
-        animation-duration: 0.26s;
-      }
-      .lumi-character-thinking #lumiBellyGlow {
-        animation-duration: 1.1s;
-      }
-
-      @keyframes lumi-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
-      @keyframes lumi-flap-left-up { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(-24deg) translateY(-4px); } }
-      @keyframes lumi-flap-right-up { 0%, 100% { transform: rotate(7deg); } 50% { transform: rotate(24deg) translateY(-4px); } }
-      @keyframes lumi-flap-left-low { 0%, 100% { transform: rotate(6deg); } 50% { transform: rotate(-8deg) translateY(3px); } }
-      @keyframes lumi-flap-right-low { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg) translateY(3px); } }
-      @keyframes lumi-pulse-glow { 0%, 100% { opacity: 0.86; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }
-      @keyframes lumi-antenna-wiggle { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(4deg); } }
-      @keyframes lumi-blink { 0%, 92%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } 96% { transform: scaleY(1); } }
-      @keyframes lumi-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.75); } 50% { opacity: 1; transform: scale(1.15); } }
-      @media (prefers-reduced-motion: reduce) {
-        #lumiBody, #lumiLeftWingUpper, #lumiRightWingUpper, #lumiLeftWingLower, #lumiRightWingLower,
-        #lumiBellyGlow, #lumiAntennaLeft, #lumiAntennaRight, #lumiEyes, #lumiSparkles circle {
-          animation: none !important;
-        }
-      }
-      .lumi-header-text {
-        margin-bottom: 8px;
-      }
-      .lumi-header-corner-btn {
-        position: absolute;
-        top: 0;
-        right: 0;
-      }
-      .lumi-header-title {
-        margin: 0;
-        font-family: 'Fraunces', serif;
-        font-weight: 600;
-        font-size: 16px;
-        letter-spacing: 1.5px;
-      }
-      .lumi-header-subtitle {
-        margin: 0;
-        font-size: 12px;
-        color: var(--lumi-muted);
-      }
-      .lumi-message-area {
-        flex: 1;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding-right: 4px;
-      }
-      .lumi-starters {
-        margin-top: 8px;
-      }
-      .lumi-starters-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      .lumi-starter-btn {
-        text-align: left;
-        padding: 10px 12px;
-        font-size: 13px;
-        font-family: inherit;
-        border-radius: 8px;
-        border: 1px solid rgba(127, 217, 168, 0.2);
-        background: rgba(22, 36, 58, 0.4);
-        color: var(--lumi-text);
-        cursor: pointer;
-      }
-      .lumi-starter-btn:hover {
-        border-color: rgba(255, 184, 77, 0.4);
-      }
-      .lumi-bubble {
-        max-width: 82%;
-        border-radius: 14px;
-        padding: 10px 14px;
-        font-size: 14px;
-        line-height: 1.6;
-        white-space: pre-wrap;
-      }
-      .lumi-bubble-user {
-        align-self: flex-end;
-        background: var(--lumi-gold);
-        color: #2c1b04;
-        white-space: pre-wrap;
-      }
-      .lumi-bubble-assistant {
-        align-self: flex-start;
-        background: var(--lumi-surface);
-        color: var(--lumi-text);
-      }
-      .lumi-bubble-loading {
-        color: var(--lumi-muted);
-      }
-      .lumi-input-row {
-        display: flex;
-        gap: 8px;
-        margin-top: 12px;
-        align-items: flex-end;
-      }
-      .lumi-textarea {
-        flex: 1;
-        resize: none;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid rgba(127, 217, 168, 0.2);
-        background: rgba(22, 36, 58, 0.5);
-        color: var(--lumi-text);
-        font-size: 14px;
-        font-family: inherit;
-        min-height: 40px;
-      }
-      .lumi-textarea::placeholder {
-        color: var(--lumi-muted);
-      }
-      .lumi-textarea:focus-visible {
-        outline: 2px solid var(--lumi-gold);
-        outline-offset: 1px;
-      }
-      .lumi-send-btn {
-        padding: 10px 16px;
-        border-radius: 10px;
-        border: 1px solid var(--lumi-gold);
-        background: var(--lumi-gold);
-        color: #2c1b04;
-        cursor: pointer;
-        font-size: 16px;
-        font-weight: 600;
-      }
-      .lumi-send-btn:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-
-      /* ---------- Grössere Bildschirme: etwas mehr Luft, nicht mehr Inhalt ---------- */
-      @media (min-width: 768px) {
-        .lumi-onboarding-inner {
-          max-width: 440px;
-        }
-        .lumi-chat-inner {
-          padding: 1.5rem 2rem;
-        }
-      }
-    `}</style>
-  );
+    </aside>
+    <main id="main" className="main">
+      <header className="topbar"><span className="eyebrow">DEIN LERNRAUM</span><div className="topbar-actions"><label className="motion-toggle"><input type="checkbox" checked={motion} onChange={e => setMotion(e.target.checked)} /><span>Animation</span></label><button className="icon-button" onClick={() => privacyRef.current.showModal()} aria-label="Datenschutz öffnen"><Icon name="shield" /></button></div></header>
+      {LOCAL_PREVIEW && <div className="preview-banner">Vorschau ohne KI-Verbindung. Prüfung und Lernzettel kannst du ausprobieren.</div>}
+      {view === 'learn' && <>
+        {!messages.length && !session ? <>
+          <section className="welcome">
+            <div className="welcome-copy"><div className="welcome-kicker"><span /> KLEINE SCHRITTE. GROSSE AHA-MOMENTE.</div><h1>In dir steckt<br />ein <span>heller Kopf.</span></h1><p>Bring deine Frage mit.<br />Wir finden deinen nächsten Schritt.</p><div className="lumi-caption"><span className="caption-line" /> Zusammen mit Lumi</div></div>
+            <div className="mascot-stage"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><span className="star star-one">✦</span><span className="star star-two">✧</span><LumiCharacter thinking={false} size="100%" /><div className="mascot-speech">Was möchtest du verstehen?</div></div>
+          </section>
+          <section className="learn-start"><div className="section-heading"><h2>Wo starten wir?</h2><label className="stage-picker"><span>Meine Stufe</span><select value={stage} onChange={e => setStage(e.target.value)}>{STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label></div>
+            <div className="topic-grid">{STARTERS.map(s => <button className={`topic-card ${s.color}`} key={s.subject} disabled={loading} onClick={() => send(s.text, 'coach', false, { stage, subject: s.subject, topic: '', date: '' })}><span className="subject-symbol">{s.symbol}</span><span className="topic-subject">{s.subject}</span><strong>{s.title}</strong><Icon name="arrow" /></button>)}</div>
+            <button className="exam-shortcut" onClick={() => setView('exam')}><span className="shortcut-icon"><Icon name="calendar" /></span><span><strong>Eine Prüfung steht an?</strong><span>Wir üben Schritt für Schritt für deinen Termin.</span></span><Icon name="arrow" /></button>
+          </section>
+        </> : <section className="conversation" aria-label="Lerngespräch">
+          <div className="conversation-header"><div className="chat-mascot"><LumiCharacter thinking={loading} size={84} /></div><div><div className="eyebrow">DEINE LERNRUNDE</div><h1>{session?.topic || 'Ein Schritt weiter.'}</h1><p>{currentStage}{session?.topic ? ` · ${session.subject}` : ''}</p></div><button className="button secondary compact" onClick={newTopic}>Neues Thema</button></div>
+          <div className="chat-log" role="log" aria-label="Nachrichten" aria-live="polite" aria-relevant="additions"><div className="chat-welcome"><Icon name="spark" size={18} /><span>Du denkst mit. Lumi hilft dir weiter.</span></div>{messages.map((m, i) => <article className={`message ${m.role}`} key={i}><span className="message-author">{m.role === 'user' ? 'Du' : 'Lumi'}</span><div className="message-content"><ReactMarkdown skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{m.content}</ReactMarkdown></div></article>)}{loading && <div className="thinking" role="status"><span /><span /><span /><span className="thinking-label">Lumi denkt nach …</span></div>}<div ref={bottomRef} /></div>
+        </section>}
+        <section className="composer-section" aria-label="Nachricht schreiben">
+          {!LOCAL_PREVIEW && <div className="pilot-access"><label htmlFor="pilot-code">Dein Testcode</label><input id="pilot-code" type="password" value={pilotCode} onChange={e => setPilotCode(e.target.value)} maxLength={128} autoComplete="off" spellCheck={false} autoCapitalize="none" aria-describedby="pilot-code-help" /><p id="pilot-code-help">Den Code erhältst du von der Person, die dich zum Test eingeladen hat. Du brauchst kein Konto. Bitte teste vorerst nur als erwachsene Person mit erfundenen Angaben.</p></div>}
+          {messages.length > 0 && !loading && !failed && <div className="help-options" aria-label="Weitere Hilfe">{HELP.map(h => <button key={h.mode} onClick={() => send(h.text, h.mode)}>{h.label}</button>)}</div>}
+          {error && <div className="error-box" role="alert"><span>{error}</span>{failed && <button onClick={() => send(failed.text, failed.mode, true)} disabled={loading}>Nochmals versuchen</button>}{failed && <button onClick={() => { setInput(failed.text); setMessages(prev => prev.slice(0, -1)); setFailed(null); setError(''); }}>Nachricht bearbeiten</button>}</div>}
+          <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}><label className="sr-only" htmlFor="question">Deine Frage an Lumi</label><textarea ref={inputRef} id="question" value={input} onChange={e => setInput(e.target.value)} placeholder="Deine Frage, deine Aufgabe, dein erster Gedanke …" maxLength={4000} rows={2} disabled={!!failed} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} /><button className="send-button" type="submit" disabled={!input.trim() || loading || !!failed} aria-label="Nachricht senden"><Icon name="send" /></button></form>
+          <p className="composer-note"><Icon name="shield" size={15} /><span>Keine Namen oder privaten Angaben eingeben. Nachrichten gehen an einen KI-Anbieter. <button onClick={() => privacyRef.current.showModal()}>Mehr dazu</button></span></p><p className="ai-note">Lumi kann sich irren. Prüfe wichtige Schritte mit deinem Lernmaterial.</p>
+        </section>
+      </>}
+      {view === 'exam' && <section className="workspace-panel"><div className="page-heading"><span className="page-icon"><Icon name="calendar" size={28} /></span><div className="eyebrow">DEIN ZIEL VOR AUGEN</div><h1>Bereit für dein<br /><span>Aha-Erlebnis?</span></h1><p>Was kommt an deiner Prüfung dran?<br />Wir starten dort, wo du gerade stehst.</p></div>
+        <form className="exam-form paper-panel" onSubmit={startExam}><div className="form-row"><label>Meine Stufe<select value={stage} onChange={e => setStage(e.target.value)}>{STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Fach<select value={exam.subject} onChange={e => setExam({ ...exam, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select></label></div><label>Welche Themen kommen dran?<textarea rows={3} value={exam.topic} maxLength={600} required onChange={e => setExam({ ...exam, topic: e.target.value })} placeholder="Zum Beispiel: Brüche erweitern, kürzen und vergleichen" /></label><label>Wann ist die Prüfung? <span className="optional">Optional</span><input type="date" value={exam.date} onChange={e => setExam({ ...exam, date: e.target.value })} /></label><div className="form-hint"><Icon name="note" /><p>Diese Angaben bleiben in der geöffneten Sitzung. Du kannst sie mit deinem Lernzettel mitnehmen.</p></div><button className="button primary" type="submit" disabled={!exam.topic.trim()}>Meine Lernrunde vorbereiten <Icon name="arrow" size={19} /></button></form>
+      </section>}
+      {view === 'notes' && <section className="workspace-panel"><div className="page-heading"><span className="page-icon yellow"><Icon name="note" size={28} /></span><div className="eyebrow">DEINE GEDANKEN ZUM MITNEHMEN</div><h1>Das bleibt<br /><span>bei dir.</span></h1><p>Schreib in deinen Worten auf, was du mitnimmst.<br />Dieser Lernzettel ist keine Bewertung.</p></div><div className="paper-panel notes-panel"><div className="note-meta"><strong>{exam.topic || 'Mein Lernzettel'}</strong><span>{STAGES.find(s => s.id === stage)?.label}{exam.topic ? ` · ${exam.subject}` : ''}</span></div>{[['understood', 'Das habe ich verstanden', 'Was kannst du jetzt in deinen eigenen Worten erklären?'], ['practice', 'Das möchte ich noch üben', 'Wo brauchst du noch einen Hinweis?'], ['next', 'Mein nächster Schritt', 'Womit möchtest du beim nächsten Mal anfangen?']].map(([key, title, placeholder], i) => <label className="note-field" key={key}><span><span className="note-number">0{i + 1}</span>{title}</span><textarea maxLength={1500} rows={3} value={notes[key]} onChange={e => setNotes({ ...notes, [key]: e.target.value })} placeholder={placeholder} /></label>)}<div className="note-actions"><button className="button primary" onClick={download}><Icon name="download" size={19} /> Lernzettel herunterladen</button><button className="button secondary" onClick={copyNotes}><Icon name="copy" size={18} /> Text kopieren</button></div><p className="small-text">Die Datei enthält deine Notizen, Stufe und Prüfungsangaben – keinen Chatverlauf. Speichere sie auf deinem eigenen oder schulisch zugewiesenen Speicherplatz.</p></div><div className="continuation-panel"><button className="button secondary" onClick={() => importRef.current.click()}><Icon name="upload" size={19} /> Lernzettel laden</button><button className="text-button" onClick={continueLearning} disabled={!Object.values(notes).some(v => v.trim())}>Mit meinen Notizen weiterlernen <Icon name="arrow" size={19} /></button></div></section>}
+      <footer className="footer"><span>Dein Tempo. Dein Denkweg.</span><button onClick={() => privacyRef.current.showModal()}>Datenschutz & Hinweise zum Testbetrieb</button></footer>
+    </main>
+    <input ref={importRef} className="sr-only" tabIndex={-1} type="file" accept=".json,application/json" aria-label="Lumi-Lernzettel laden" onChange={loadSheet} />
+    {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Hinweis schliessen"><Icon name="close" size={18} /></button></div>}
+    <dialog ref={privacyRef} className="privacy-dialog"><div className="dialog-heading"><Icon name="shield" size={26} /><h2>Deine Daten bei Lumi</h2><button className="icon-button" onClick={() => privacyRef.current.close()} aria-label="Datenschutzhinweise schliessen" autoFocus><Icon name="close" /></button></div><div className="dialog-body"><p><strong>Du entscheidest, was du mitnehmen möchtest.</strong> Diese Version legt keine Konten an und speichert Chats oder Lernstände nicht dauerhaft in der App. Beim Neuladen oder Beenden der Sitzung werden sie aus der Seite entfernt.</p><h3>Dein Testzugang</h3><p>Der Testcode wird nur in dieser geöffneten Seite gehalten und zur Prüfung an den Lumi-Server gesendet, nicht an die KI. Beim Beenden der Sitzung wird er aus der Seite entfernt. Er ist kein persönliches Konto.</p><h3>Was geht an die KI?</h3><p>Beim Senden gehen dein bisheriger Chat dieser Lernrunde, die gewählte Stufe und gegebenenfalls Fach, Themen und Prüfungstermin über den Server an Anthropic. Gib keine Namen, Adressen oder anderen privaten Angaben ein. Es gibt keinen Filter, der alle persönlichen Angaben sicher erkennen kann.</p><h3>Was ist mit meinem Lernzettel?</h3><p>Notizen bleiben zunächst in dieser Seite. Herunterladen speichert eine Datei auf deinem Gerät. Laden liest sie in die Seite ein. Erst wenn du sie beim Weiterlernen als Nachricht sendest, gehen sie an die KI. Auf geteilten Geräten: eigene Speicherplätze verwenden und die Sitzung am Ende beenden.</p><h3>Was bedeutet „Sitzung beenden“?</h3><p>Das entfernt die Daten aus dieser Seite. Es löscht keine heruntergeladenen Dateien oder bereits beim Anbieter verarbeiteten Daten. Lumi verwendet keine Analyse- oder Werbedienste und lädt keine externen Schriftarten. Beim Hosting und KI-Anbieter können jedoch technische Protokolle und Aufbewahrungsfristen bestehen.</p><div className="pilot-notice"><strong>Entwicklungsversion – noch keine Freigabe für Schülerdaten.</strong><p>Vor dem Klasseneinsatz müssen die Schule und der Betreiber die Anbietervereinbarungen, Speicherorte und -fristen, Zugriffsregeln, Kostenbegrenzung und Verantwortlichkeiten prüfen. Diese Hinweise ersetzen keine vollständige Datenschutzerklärung des Betreibers.</p></div><p>Lumi ist eine Lernhilfe, kann Fehler machen und ersetzt keine Lehrperson. Bei belastenden oder gefährlichen Situationen wende dich an eine vertraute erwachsene Person.</p></div><button className="button primary" onClick={() => privacyRef.current.close()}>Verstanden</button></dialog>
+  </div>;
 }
