@@ -4,7 +4,9 @@ import LumiCharacter from './components/LumiCharacter';
 import Icon from './components/Icon';
 import ExamPlan from './components/ExamPlan';
 import LearningSheet from './components/LearningSheet';
-import { STAGES, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation, buildTopicStart, buildExamStart, topicsAsContext, hasContent } from './learning';
+import StagePicker from './components/StagePicker';
+import { fitSubject } from '../shared/curriculum.js';
+import { DEFAULT_STAGE, needsTrack, stageLabel, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation, buildTopicStart, buildExamStart, topicsAsContext, hasContent } from './learning';
 import './styles.css';
 import './mascot.css';
 import './plan.css';
@@ -26,7 +28,8 @@ const HELP = [
 export default function App() {
   const [pilotCode, setPilotCode] = useState('');
   const [view, setView] = useState('learn');
-  const [stage, setStage] = useState('5');
+  const [stage, setStage] = useState(DEFAULT_STAGE);
+  const [track, setTrack] = useState('');
   const [exam, setExam] = useState({ ...EMPTY_EXAM });
   const [notes, setNotes] = useState({ ...EMPTY_NOTES });
   const [session, setSession] = useState(null);
@@ -64,7 +67,7 @@ export default function App() {
   function resetAll() {
     if (!window.confirm('Diese Sitzung beenden? Chat, Prüfung und Notizen werden aus dieser Seite entfernt. Lade deinen Lernzettel vorher herunter. Bereits übermittelte Daten beim KI-Anbieter werden dadurch nicht gelöscht.')) return;
     setPilotCode('');
-    clearChat(); setSession(null); setExam({ ...EMPTY_EXAM }); setNotes({ ...EMPTY_NOTES }); setStage('5'); setView('learn');
+    clearChat(); setSession(null); setExam({ ...EMPTY_EXAM }); setNotes({ ...EMPTY_NOTES }); setStage(DEFAULT_STAGE); setTrack(''); setView('learn');
     setNotice('Die Sitzung auf dieser Seite ist beendet.');
   }
   function newTopic() {
@@ -77,7 +80,7 @@ export default function App() {
     if (!content || requestRef.current) return;
     if (!LOCAL_PREVIEW && !pilotCode.trim()) { setError('Trage bitte zuerst deinen Testcode ein. Deine Nachricht wurde noch nicht gesendet.'); return; }
     if (content.length > 4000) { setError('Teile deine Aufgabe bitte in kleinere Abschnitte (höchstens 4000 Zeichen).'); return; }
-    const current = overrideSession || session || { stage, subject: exam.subject, topic: '', date: '' };
+    const current = overrideSession || session || { stage, track, subject: exam.subject, topic: '', date: '' };
     const nextMessages = retry ? messages : [...messages, { role: 'user', content }];
     if (nextMessages.length > 25 || nextMessages.reduce((n, m) => n + m.content.length, 0) > 26000) {
       setError('Diese Lernrunde ist voll. Nimm das Wichtigste in deinen Lernzettel auf und beginne ein neues Thema.'); return;
@@ -90,7 +93,7 @@ export default function App() {
       if (LOCAL_PREVIEW) throw new Error('Diese Designvorschau hat keine KI-Verbindung. Prüfung und Lernzettel kannst du bereits ausprobieren.');
       const response = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lumi-Pilot-Code': pilotCode.trim() }, signal: controller.signal,
-        body: JSON.stringify({ messages: nextMessages, stage: current.stage, mode, context: { subject: current.subject, topic: current.topic, date: current.date } }),
+        body: JSON.stringify({ messages: nextMessages, stage: current.stage, track: current.track || '', mode, context: { subject: current.subject, topic: current.topic, date: current.date } }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Lumi ist gerade nicht erreichbar. Bitte versuche es später noch einmal.');
@@ -109,7 +112,7 @@ export default function App() {
   function startPractice(topicLabel, text) {
     if (messages.length && !window.confirm('Eine neue Lernrunde starten? Dein bisheriger Chat wird aus dieser Seite entfernt. Lernzettel und Themen bleiben.')) return;
     clearChat();
-    setSession({ stage, subject: exam.subject, topic: topicLabel, date: exam.date });
+    setSession({ stage, track, subject: exam.subject, topic: topicLabel, date: exam.date });
     setView('learn');
     setInput(text);
     setNotice('Deine Lernrunde ist bereit. Prüfe die Nachricht und sende sie an Lumi.');
@@ -124,28 +127,33 @@ export default function App() {
       if (file.size > MAX_IMPORT_BYTES) throw new Error('Dieser Lernzettel ist zu gross.');
       const sheet = readLearningSheet(await file.text());
       if ((messages.length || hasContent(exam, notes)) && !window.confirm('Lernzettel laden? Die aktuelle Sitzung und deine bisherigen Notizen werden ersetzt.')) return;
-      clearChat(); setStage(sheet.stage); setExam(sheet.exam); setNotes(sheet.notes); setSession(null); setView('notes');
+      clearChat(); setStage(sheet.profile.stage); setTrack(sheet.profile.track); setExam(sheet.exam); setNotes(sheet.notes); setSession(null); setView('notes');
       setNotice('Lernzettel geladen. Er wurde nicht an die KI gesendet.');
     } catch (err) { setNotice(err.message); }
   }
   function download() {
-    const blob = new Blob([JSON.stringify(makeLearningSheet(stage, exam, notes), null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(makeLearningSheet({ stage, track }, exam, notes), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
     a.href = url; a.download = 'mein-lumi-lernzettel.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice('Lernzettel heruntergeladen. Bewahre ihn an deinem eigenen Speicherort auf.');
   }
   async function copyNotes() {
-    try { await navigator.clipboard.writeText(sheetAsText(stage, exam, notes)); setNotice('Lernzettel kopiert.'); }
+    try { await navigator.clipboard.writeText(sheetAsText({ stage, track }, exam, notes)); setNotice('Lernzettel kopiert.'); }
     catch { setNotice('Kopieren ist hier nicht möglich. Du kannst den Lernzettel herunterladen.'); }
   }
   function continueLearning() {
     if (messages.length && !window.confirm('Mit dem Lernzettel eine neue Runde beginnen? Der bisherige Chat wird aus dieser Seite entfernt.')) return;
-    clearChat(); setSession({ stage, subject: exam.subject, topic: topicsAsContext(exam.topics), date: exam.date }); setInput(buildContinuation(exam, notes)); setView('learn');
+    clearChat(); setSession({ stage, track, subject: exam.subject, topic: topicsAsContext(exam.topics), date: exam.date }); setInput(buildContinuation(exam, notes)); setView('learn');
     setNotice('Prüfe den Text vor dem Senden. Erst dann gehen diese Notizen an die KI.');
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  const currentStage = STAGES.find(s => s.id === (session?.stage || stage))?.label;
+  const currentStage = session ? stageLabel(session.stage, session.track) : stageLabel(stage, track);
+  function changeProfile(next) {
+    setStage(next.stage);
+    setTrack(needsTrack(next.stage) ? next.track : '');
+    setExam(prev => ({ ...prev, subject: fitSubject(next.stage, prev.subject) }));
+  }
   return <div className={`app ${motion ? '' : 'motion-off'}`}>
     <a className="skip-link" href="#main">Zum Lernbereich</a>
     <aside className="sidebar">
@@ -170,8 +178,8 @@ export default function App() {
             <div className="welcome-copy"><div className="welcome-kicker"><span /> KLEINE SCHRITTE. GROSSE AHA-MOMENTE.</div><h1>In dir steckt<br />ein <span>heller Kopf.</span></h1><p>Bring deine Frage mit.<br />Wir finden deinen nächsten Schritt.</p><div className="lumi-caption"><span className="caption-line" /> Zusammen mit Lumi</div></div>
             <div className="mascot-stage"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><span className="star star-one">✦</span><span className="star star-two">✧</span><LumiCharacter thinking={false} size="100%" /><div className="mascot-speech">Was möchtest du verstehen?</div></div>
           </section>
-          <section className="learn-start"><div className="section-heading"><h2>Wo starten wir?</h2><label className="stage-picker"><span>Meine Stufe</span><select value={stage} onChange={e => setStage(e.target.value)}>{STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label></div>
-            <div className="topic-grid">{STARTERS.map(s => <button className={`topic-card ${s.color}`} key={s.subject} disabled={loading} onClick={() => send(s.text, 'coach', false, { stage, subject: s.subject, topic: '', date: '' })}><span className="subject-symbol">{s.symbol}</span><span className="topic-subject">{s.subject}</span><strong>{s.title}</strong><Icon name="arrow" /></button>)}</div>
+          <section className="learn-start"><div className="section-heading"><h2>Wo starten wir?</h2><StagePicker variant="inline" stage={stage} track={track} onChange={changeProfile} /></div>
+            <div className="topic-grid">{STARTERS.map(s => { const subject = fitSubject(stage, s.subject); return <button className={`topic-card ${s.color}`} key={s.title} disabled={loading} onClick={() => send(s.text, 'coach', false, { stage, track, subject, topic: '', date: '' })}><span className="subject-symbol">{s.symbol}</span><span className="topic-subject">{subject}</span><strong>{s.title}</strong><Icon name="arrow" /></button>; })}</div>
             <button className="exam-shortcut" onClick={() => setView('exam')}><span className="shortcut-icon"><Icon name="calendar" /></span><span><strong>Eine Prüfung steht an?</strong><span>Wir üben Schritt für Schritt für deinen Termin.</span></span><Icon name="arrow" /></button>
           </section>
         </> : <section className="conversation" aria-label="Lerngespräch">
@@ -186,8 +194,8 @@ export default function App() {
           <p className="composer-note"><Icon name="shield" size={15} /><span>Keine Namen oder privaten Angaben eingeben. Nachrichten gehen an einen KI-Anbieter. <button onClick={() => privacyRef.current.showModal()}>Mehr dazu</button></span></p><p className="ai-note">Lumi kann sich irren. Prüfe wichtige Schritte mit deinem Lernmaterial.</p>
         </section>
       </>}
-      {view === 'exam' && <ExamPlan stage={stage} setStage={setStage} exam={exam} setExam={setExam} onPracticeTopic={practiceTopic} onStartAll={practiceExam} onOpenSheet={() => setView('notes')} />}
-      {view === 'notes' && <LearningSheet stage={stage} exam={exam} notes={notes} setNotes={setNotes} onEditPlan={() => setView('exam')} onContinue={continueLearning} onDownload={download} onCopy={copyNotes} onLoad={() => importRef.current.click()} />}
+      {view === 'exam' && <ExamPlan stage={stage} track={track} onProfileChange={changeProfile} exam={exam} setExam={setExam} onPracticeTopic={practiceTopic} onStartAll={practiceExam} onOpenSheet={() => setView('notes')} />}
+      {view === 'notes' && <LearningSheet stage={stage} track={track} exam={exam} notes={notes} setNotes={setNotes} onEditPlan={() => setView('exam')} onContinue={continueLearning} onDownload={download} onCopy={copyNotes} onLoad={() => importRef.current.click()} />}
       <footer className="footer"><span>Dein Tempo. Dein Denkweg.</span><span>Brauchst du Hilfe? Ruf <a href="tel:147">147</a> an – rund um die Uhr.</span><button onClick={() => privacyRef.current.showModal()}>Datenschutz & Hinweise zum Testbetrieb</button></footer>
     </main>
     <input ref={importRef} className="sr-only" tabIndex={-1} type="file" accept=".json,application/json" aria-label="Lumi-Lernzettel laden" onChange={loadSheet} />

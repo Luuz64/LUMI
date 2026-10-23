@@ -8,7 +8,8 @@ Lumi begleitet Kinder und Jugendliche beim Denken. Diese Version überarbeitet d
 
 - Neue responsive Lernoberfläche: dunkle Lumi-Welt, helle Arbeitsfläche, vorhandenes animiertes SVG-Glühwürmchen als zentraler Charakter.
 - Animation abschaltbar; Systemeinstellung für reduzierte Bewegung wird berücksichtigt.
-- Schulstufen 1–9 und Sek II/Lehre bleiben verfügbar. Voreinstellung ist das 5. Schuljahr und sichtbar änderbar.
+- Stufen nach Aargauer System: 1.–6. Klasse Primarschule, 1.–3. Oberstufe mit Schultyp (Real, Sek, Bez), Mittelschule/Gymnasium und Berufslehre. Voreinstellung ist die 5. Klasse und sichtbar änderbar.
+- Lehrplan-Kontext: Fächer je Stufe und die Kompetenzbereiche des Aargauer Lehrplans (Lehrplan 21) fliessen in den Prompt. Details und geplante Anbindung der offiziellen Schnittstelle: `docs/LEHRPLAN21-API.md`.
 - Freies Lernen, Prüfungsvorbereitung mit Fach/Themen/optionalem Datum.
 - Drei Hilfen: Hinweis, anderes erklärtes Beispiel, Verständnisprüfung. Richtige eigene Lösungen dürfen bestätigt werden.
 - Prüfungsplan: Themen als Liste mit eigener Einschätzung (Noch unsicher / Geht so / Sitzt), Countdown zum Prüfungsdatum, jedes Thema einzeln üben. Die „Lichterkette“ zeigt die Selbsteinschätzung, sie ist keine Bewertung.

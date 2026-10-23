@@ -25,7 +25,7 @@
 .field-help { font-size: 13px; color: var(--muted); margin: 8px 2px 0; }
 
 /* Basics: Stufe, Fach, Datum */
-.exam-basics { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 18px; align-items: end; }
+.exam-basics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; align-items: end; }
 .countdown { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 2px 0 0; padding: 11px 14px; border-radius: 12px; background: #eeebff; color: #3f33b0; font-size: 15px; line-height: 1.4; }
 .countdown svg { flex: none; }
 .countdown.soon { background: #fff3d1; color: #6e4f0b; }
@@ -135,15 +135,12 @@
 @media (max-width: 780px) {
   .sheet-section { padding: 22px 20px; }
   .exam-basics { grid-template-columns: 1fr 1fr; }
-  .exam-basics .field:nth-child(2) { grid-column: 2; }
-  .exam-basics .field:nth-child(3) { grid-column: 1 / -1; }
   .topic-row { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: 10px; }
   .level-picker { grid-column: 2 / 3; justify-self: start; }
   .topic-actions { grid-column: 3; grid-row: 1 / span 2; align-self: start; flex-direction: column-reverse; align-items: flex-end; }
 }
 @media (max-width: 480px) {
   .exam-basics { grid-template-columns: 1fr; }
-  .exam-basics .field:nth-child(2), .exam-basics .field:nth-child(3) { grid-column: auto; }
   .topic-add { flex-direction: column; }
   .topic-add .button { width: 100%; }
   .level-option span { padding: 7px 9px; }
@@ -175,4 +172,10 @@
   .print-only { display: block; }
   .print-text { min-height: 56px; white-space: pre-wrap; font-size: 15px; line-height: 28px; border-bottom: 1px solid #c9d1e3; padding-bottom: 4px; }
   .print-footer { font-size: 11px; color: var(--muted); padding: 10px 20px; margin: 0; }
+}
+
+/* Stufenauswahl auf der Startseite: Stufe und Schultyp nebeneinander */
+.stage-picker select + select { margin-left: 6px; }
+@media (max-width: 480px) {
+  .stage-picker select + select { margin-left: 0; }
 }

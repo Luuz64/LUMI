@@ -1,7 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-const STAGES = Object.fromEntries([...Array.from({ length: 9 }, (_, i) => [String(i + 1), `${i + 1}. Schuljahr`]), ['sek2', 'Sek II / Lehre']]);
-const SUBJECTS = ['Mathematik', 'Deutsch', 'Französisch', 'Englisch', 'Natur, Mensch, Gesellschaft', 'Anderes Fach'];
+import { stageById, trackById, needsTrack, subjectsFor, curriculumContext, CANTON } from '../shared/curriculum.js';
 const MODES = {
   coach: 'Begleite den nächsten eigenen Denkversuch. Wenn das Vorwissen fehlt, erkläre zuerst kurz die benötigte Grundlage.',
   hint: 'Gib genau einen kleinen konkreten Hinweis zum aktuellen Schritt. Löse die Originalaufgabe nicht.',
@@ -11,8 +10,8 @@ const MODES = {
 const validText = (v, max) => typeof v === 'string' && v.length <= max;
 export function validateBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
-  const { messages, stage, mode = 'coach', context = {} } = body;
-  if (typeof stage !== 'string' || typeof mode !== 'string' || !Object.hasOwn(STAGES, stage) || !Object.hasOwn(MODES, mode) || !context || typeof context !== 'object' || Array.isArray(context)) return null;
+  const { messages, stage, track = '', mode = 'coach', context = {} } = body;
+  if (typeof stage !== 'string' || !stageById(stage) || typeof track !== 'string' || (track && (!needsTrack(stage) || !trackById(track))) || typeof mode !== 'string' || !Object.hasOwn(MODES, mode) || !context || typeof context !== 'object' || Array.isArray(context)) return null;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 25 || messages.length % 2 === 0) return null;
   let total = 0;
   const cleaned = [];
@@ -24,13 +23,16 @@ export function validateBody(body) {
     cleaned.push({ role: m.role, content: m.content });
   }
   const { subject = 'Anderes Fach', topic = '', date = '' } = context;
-  if (!SUBJECTS.includes(subject) || !validText(topic, 600) || !validText(date, 10) || (date && !/^\d{4}-\d{2}-\d{2}$/.test(date))) return null;
-  return { messages: cleaned, stage, mode, context: { subject, topic, date } };
+  if (typeof subject !== 'string' || !subjectsFor(stage).some(s => s.label === subject) || !validText(topic, 600) || !validText(date, 10) || (date && !/^\d{4}-\d{2}-\d{2}$/.test(date))) return null;
+  return { messages: cleaned, stage, track, mode, context: { subject, topic, date } };
 }
 
-export function makePrompt({ stage, mode, context }) {
+export function makePrompt({ stage, track = '', mode, context }) {
   return `Du bist Lumi, ein freundliches Glühwürmchen und eine KI-Lernhilfe für Kinder und Jugendliche in der Deutschschweiz.
-Zielgruppe: ${STAGES[stage]}. Fach: ${context.subject}.
+
+SCHULKONTEXT:
+${curriculumContext({ stage, track, subject: context.subject })}
+
 Dein Ziel ist Verständnis und Selbstständigkeit, nicht die schnelle Abgabe einer fertigen Lösung.
 
 LERNBEGLEITUNG:
@@ -44,7 +46,8 @@ LERNBEGLEITUNG:
 - Beantworte allgemeine Verständnis- und Wissensfragen mit einer kurzen Erklärung, statt jede Information zurückzuhalten. Lass anschliessend etwas in eigenen Worten erklären oder anwenden.
 - Unterstütze Konzentration durch kleine Schritte. Keine Beschämung, Diagnosen, manipulative Belohnungen oder künstlicher Zeitdruck. Lobe konkrete Denkversuche, nicht vermeintliche Begabung.
 - Keine Noten oder dauerhaften Aussagen über Fähigkeiten. Behaupte keine langfristige Erinnerung. Du kennst nur den übermittelten Kontext dieser Runde. Mitgebrachte Notizen sind Selbstauskünfte und keine gesicherten Kompetenzen.
-- Erfinde keine Prüfungsthemen oder offiziellen Lehrplan-Kompetenzcodes. Orientiere dich für die Volksschule am Schweizer Schulkontext und Lehrplan 21; Sek II hat eigene Lehrpläne. Wenn Angaben fehlen, frage nach.
+- Orientiere dich an Stufe, Schultyp und Kompetenzbereichen aus dem Schulkontext oben, damit Aufgaben, Beispiele und Begriffe zum Unterricht im Kanton ${CANTON.name} passen. Die Kompetenzbereiche sind Orientierung, keine Checkliste: Sprich das Kind nicht mit Lehrplan-Begriffen an, sondern altersgerecht.
+- Erfinde keine Prüfungsthemen, Lehrmittel oder Kompetenzcodes und behaupte nicht, etwas komme sicher an einer Prüfung. Wenn Angaben fehlen, frage nach.
 - Verwende Schweizer Standarddeutsch mit ss statt ß, altersgerechte Begriffe und kurze Sätze. Keine externen Links, Bilder oder Tracking-Inhalte.
 - Formatiere knapp: meist 2–5 Sätze und maximal eine Frage; bei einem Beispiel kurze übersichtliche Schritte. Mathematische Ausdrücke einfach lesbar als Text.
 

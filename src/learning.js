@@ -1,8 +1,7 @@
-export const STAGES = [
-  ...Array.from({ length: 9 }, (_, i) => ({ id: String(i + 1), label: `${i + 1}. Schuljahr` })),
-  { id: 'sek2', label: 'Sek II / Lehre' },
-];
-export const SUBJECTS = ['Mathematik', 'Deutsch', 'Französisch', 'Englisch', 'Natur, Mensch, Gesellschaft', 'Anderes Fach'];
+import { STAGES, TRACKS, SUBJECTS, DEFAULT_STAGE, stageLabel, needsTrack, fitSubject, migrateStage } from '../shared/curriculum.js';
+
+export { STAGES, TRACKS, DEFAULT_STAGE, stageLabel, needsTrack };
+export const DEFAULT_PROFILE = { stage: DEFAULT_STAGE, track: '' };
 
 // Self-assessment only. Lumi never sets these; the learner chooses them.
 export const LEVELS = [
@@ -64,9 +63,9 @@ export function formatDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-export function makeLearningSheet(stage, exam, notes) {
+export function makeLearningSheet(profile, exam, notes) {
   return {
-    format: 'lumi-lernzettel', version: 2, stage,
+    format: 'lumi-lernzettel', version: 2, stage: profile.stage, track: needsTrack(profile.stage) ? profile.track : '',
     exam: { subject: exam.subject, date: exam.date, topics: exam.topics.map(t => ({ text: t.text, level: t.level })) },
     notes: { understood: notes.understood, practice: notes.practice, next: notes.next },
   };
@@ -80,8 +79,10 @@ export function readLearningSheet(text) {
   try { d = JSON.parse(text); } catch { throw new Error('Bitte wähle einen von Lumi heruntergeladenen Lernzettel (.json).'); }
   const validText = (s, max) => typeof s === 'string' && s.length <= max;
   const formatError = () => new Error('Das Format dieses Lernzettels passt nicht. Deine bisherigen Einträge bleiben erhalten.');
+  const stage = d && typeof d.stage === 'string' ? migrateStage(d.stage) : null;
   if (!d || typeof d !== 'object' || Array.isArray(d) || d.format !== 'lumi-lernzettel' || ![1, 2].includes(d.version)
-    || !STAGES.some(s => s.id === d.stage) || !d.exam || typeof d.exam !== 'object' || !SUBJECTS.includes(d.exam.subject)
+    || !stage || (d.track !== undefined && !['', ...TRACKS.map(t => t.id)].includes(d.track))
+    || !d.exam || typeof d.exam !== 'object' || !SUBJECTS.some(sub => sub.label === d.exam.subject)
     || !validText(d.exam.date, 10) || (d.exam.date && !/^\d{4}-\d{2}-\d{2}$/.test(d.exam.date))
     || !d.notes || typeof d.notes !== 'object' || !['understood', 'practice', 'next'].every(k => validText(d.notes[k], 1500))) {
     throw formatError();
@@ -96,15 +97,15 @@ export function readLearningSheet(text) {
     topics = d.exam.topics.map(t => makeTopic(t.text, t.level));
   }
   return {
-    stage: d.stage,
-    exam: { subject: d.exam.subject, date: d.exam.date, topics },
+    profile: { stage, track: needsTrack(stage) && d.track ? d.track : '' },
+    exam: { subject: fitSubject(stage, d.exam.subject), date: d.exam.date, topics },
     notes: { understood: d.notes.understood, practice: d.notes.practice, next: d.notes.next },
   };
 }
 
-export function sheetAsText(stage, exam, notes) {
+export function sheetAsText(profile, exam, notes) {
   const topicLines = exam.topics.length ? practiceOrder(exam.topics).map(t => `- ${t.text} (${levelLabel(t.level)})`) : ['Noch keine Themen eingetragen.'];
-  return ['MEIN LUMI-LERNZETTEL', STAGES.find(s => s.id === stage)?.label || '', `Fach: ${exam.subject}`,
+  return ['MEIN LUMI-LERNZETTEL', stageLabel(profile.stage, profile.track), `Fach: ${exam.subject}`,
     `Prüfung: ${exam.date ? `${formatDate(exam.date)} (${countdownText(exam.date)})` : 'Kein Datum'}`,
     '', 'Themen und meine Einschätzung:', ...topicLines,
     '', 'Das habe ich verstanden:', notes.understood || 'Noch kein Eintrag.',
