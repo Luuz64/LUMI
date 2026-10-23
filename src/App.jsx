@@ -1,27 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import LumiCharacter from './components/LumiCharacter';
-import { STAGES, SUBJECTS, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation } from './learning';
+import Icon from './components/Icon';
+import ExamPlan from './components/ExamPlan';
+import LearningSheet from './components/LearningSheet';
+import { STAGES, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation, buildTopicStart, buildExamStart, topicsAsContext, hasContent } from './learning';
 import './styles.css';
 import './mascot.css';
+import './plan.css';
 
-function Icon({ name, size = 22, ...props }) {
-  const paths = {
-    spark: <><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z" /></>,
-    book: <><path d="M12 5v15M3 4c4-1 6 0 9 2 3-2 5-3 9-2v14c-4-1-6 0-9 2-3-2-5-3-9-2Z" /></>,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2" /></>,
-    note: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8m-8 4h5" /></>,
-    shield: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" /><path d="m8 12 3 3 5-6" /></>,
-    arrow: <><path d="M5 12h14m-6-6 6 6-6 6" /></>,
-    send: <><path d="m4 11 8-8 8 8M12 3v18" /></>,
-    download: <><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></>,
-    upload: <><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" /></>,
-    close: <path d="m6 6 12 12M18 6 6 18" />,
-    reset: <><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" /></>,
-    copy: <><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M15 8V3H3v13h5" /></>,
-  };
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths[name] || paths.spark}</svg>;
-}
 
 const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === 'true';
 
@@ -62,7 +49,7 @@ export default function App() {
   }, [messages, loading, error]);
   useEffect(() => () => requestRef.current?.abort(), []);
   useEffect(() => {
-    const warn = e => { if (messages.length || Object.values(notes).some(Boolean) || exam.topic || input) { e.preventDefault(); e.returnValue = ''; } };
+    const warn = e => { if (messages.length || hasContent(exam, notes) || input) { e.preventDefault(); e.returnValue = ''; } };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [messages.length, notes, exam, input]);
@@ -119,25 +106,24 @@ export default function App() {
       if (requestId === generation.current) { requestRef.current = null; setLoading(false); }
     }
   }
-  function startExam(e) {
-    e.preventDefault();
-    if (messages.length && !window.confirm('Eine neue Prüfungsrunde starten? Dein bisheriger Chat wird aus dieser Seite entfernt. Notizen bleiben.')) return;
+  function startPractice(topicLabel, text) {
+    if (messages.length && !window.confirm('Eine neue Lernrunde starten? Dein bisheriger Chat wird aus dieser Seite entfernt. Lernzettel und Themen bleiben.')) return;
     clearChat();
-    const current = { ...exam, stage };
-    setSession(current);
-    // Use an explicit fresh history; React state updates have not committed yet.
+    setSession({ stage, subject: exam.subject, topic: topicLabel, date: exam.date });
     setView('learn');
-    setInput(`Ich bereite mich auf ${exam.topic.trim()} vor. Bitte finde mit einer Frage heraus, was ich schon verstehe.`);
-    setNotice('Deine Prüfungsrunde ist bereit. Sende deine erste Nachricht an Lumi.');
+    setInput(text);
+    setNotice('Deine Lernrunde ist bereit. Prüfe die Nachricht und sende sie an Lumi.');
     setTimeout(() => inputRef.current?.focus(), 0);
   }
+  const practiceTopic = topic => startPractice(topic.text, buildTopicStart(topic));
+  const practiceExam = () => exam.topics.length && startPractice(topicsAsContext(exam.topics), buildExamStart(exam));
   async function loadSheet(e) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     try {
       if (file.size > MAX_IMPORT_BYTES) throw new Error('Dieser Lernzettel ist zu gross.');
       const sheet = readLearningSheet(await file.text());
-      if ((messages.length || Object.values(notes).some(Boolean) || exam.topic) && !window.confirm('Lernzettel laden? Die aktuelle Sitzung und deine bisherigen Notizen werden ersetzt.')) return;
+      if ((messages.length || hasContent(exam, notes)) && !window.confirm('Lernzettel laden? Die aktuelle Sitzung und deine bisherigen Notizen werden ersetzt.')) return;
       clearChat(); setStage(sheet.stage); setExam(sheet.exam); setNotes(sheet.notes); setSession(null); setView('notes');
       setNotice('Lernzettel geladen. Er wurde nicht an die KI gesendet.');
     } catch (err) { setNotice(err.message); }
@@ -154,7 +140,7 @@ export default function App() {
   }
   function continueLearning() {
     if (messages.length && !window.confirm('Mit dem Lernzettel eine neue Runde beginnen? Der bisherige Chat wird aus dieser Seite entfernt.')) return;
-    clearChat(); setSession({ ...exam, stage }); setInput(buildContinuation(notes)); setView('learn');
+    clearChat(); setSession({ stage, subject: exam.subject, topic: topicsAsContext(exam.topics), date: exam.date }); setInput(buildContinuation(exam, notes)); setView('learn');
     setNotice('Prüfe den Text vor dem Senden. Erst dann gehen diese Notizen an die KI.');
     setTimeout(() => inputRef.current?.focus(), 0);
   }
@@ -200,10 +186,8 @@ export default function App() {
           <p className="composer-note"><Icon name="shield" size={15} /><span>Keine Namen oder privaten Angaben eingeben. Nachrichten gehen an einen KI-Anbieter. <button onClick={() => privacyRef.current.showModal()}>Mehr dazu</button></span></p><p className="ai-note">Lumi kann sich irren. Prüfe wichtige Schritte mit deinem Lernmaterial.</p>
         </section>
       </>}
-      {view === 'exam' && <section className="workspace-panel"><div className="page-heading"><span className="page-icon"><Icon name="calendar" size={28} /></span><div className="eyebrow">DEIN ZIEL VOR AUGEN</div><h1>Bereit für dein<br /><span>Aha-Erlebnis?</span></h1><p>Was kommt an deiner Prüfung dran?<br />Wir starten dort, wo du gerade stehst.</p></div>
-        <form className="exam-form paper-panel" onSubmit={startExam}><div className="form-row"><label>Meine Stufe<select value={stage} onChange={e => setStage(e.target.value)}>{STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Fach<select value={exam.subject} onChange={e => setExam({ ...exam, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select></label></div><label>Welche Themen kommen dran?<textarea rows={3} value={exam.topic} maxLength={600} required onChange={e => setExam({ ...exam, topic: e.target.value })} placeholder="Zum Beispiel: Brüche erweitern, kürzen und vergleichen" /></label><label>Wann ist die Prüfung? <span className="optional">Optional</span><input type="date" value={exam.date} onChange={e => setExam({ ...exam, date: e.target.value })} /></label><div className="form-hint"><Icon name="note" /><p>Diese Angaben bleiben in der geöffneten Sitzung. Du kannst sie mit deinem Lernzettel mitnehmen.</p></div><button className="button primary" type="submit" disabled={!exam.topic.trim()}>Meine Lernrunde vorbereiten <Icon name="arrow" size={19} /></button></form>
-      </section>}
-      {view === 'notes' && <section className="workspace-panel"><div className="page-heading"><span className="page-icon yellow"><Icon name="note" size={28} /></span><div className="eyebrow">DEINE GEDANKEN ZUM MITNEHMEN</div><h1>Das bleibt<br /><span>bei dir.</span></h1><p>Schreib in deinen Worten auf, was du mitnimmst.<br />Dieser Lernzettel ist keine Bewertung.</p></div><div className="paper-panel notes-panel"><div className="note-meta"><strong>{exam.topic || 'Mein Lernzettel'}</strong><span>{STAGES.find(s => s.id === stage)?.label}{exam.topic ? ` · ${exam.subject}` : ''}</span></div>{[['understood', 'Das habe ich verstanden', 'Was kannst du jetzt in deinen eigenen Worten erklären?'], ['practice', 'Das möchte ich noch üben', 'Wo brauchst du noch einen Hinweis?'], ['next', 'Mein nächster Schritt', 'Womit möchtest du beim nächsten Mal anfangen?']].map(([key, title, placeholder], i) => <label className="note-field" key={key}><span><span className="note-number">0{i + 1}</span>{title}</span><textarea maxLength={1500} rows={3} value={notes[key]} onChange={e => setNotes({ ...notes, [key]: e.target.value })} placeholder={placeholder} /></label>)}<div className="note-actions"><button className="button primary" onClick={download}><Icon name="download" size={19} /> Lernzettel herunterladen</button><button className="button secondary" onClick={copyNotes}><Icon name="copy" size={18} /> Text kopieren</button></div><p className="small-text">Die Datei enthält deine Notizen, Stufe und Prüfungsangaben – keinen Chatverlauf. Speichere sie auf deinem eigenen oder schulisch zugewiesenen Speicherplatz.</p></div><div className="continuation-panel"><button className="button secondary" onClick={() => importRef.current.click()}><Icon name="upload" size={19} /> Lernzettel laden</button><button className="text-button" onClick={continueLearning} disabled={!Object.values(notes).some(v => v.trim())}>Mit meinen Notizen weiterlernen <Icon name="arrow" size={19} /></button></div></section>}
+      {view === 'exam' && <ExamPlan stage={stage} setStage={setStage} exam={exam} setExam={setExam} onPracticeTopic={practiceTopic} onStartAll={practiceExam} onOpenSheet={() => setView('notes')} />}
+      {view === 'notes' && <LearningSheet stage={stage} exam={exam} notes={notes} setNotes={setNotes} onEditPlan={() => setView('exam')} onContinue={continueLearning} onDownload={download} onCopy={copyNotes} onLoad={() => importRef.current.click()} />}
       <footer className="footer"><span>Dein Tempo. Dein Denkweg.</span><span>Brauchst du Hilfe? Ruf <a href="tel:147">147</a> an – rund um die Uhr.</span><button onClick={() => privacyRef.current.showModal()}>Datenschutz & Hinweise zum Testbetrieb</button></footer>
     </main>
     <input ref={importRef} className="sr-only" tabIndex={-1} type="file" accept=".json,application/json" aria-label="Lumi-Lernzettel laden" onChange={loadSheet} />
