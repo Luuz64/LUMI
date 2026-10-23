@@ -150,11 +150,11 @@ export function migrateStage(oldId) {
 
 // Sprache und Ton je Stufe. Konkrete Vorgaben statt nur «altersgerecht».
 const TONE = {
-  early: 'Das Kind ist 6–8 Jahre alt und liest vielleicht noch langsam. Sehr kurze Sätze mit höchstens etwa 10 Wörtern, nur bekannte Alltagswörter, ein einziger Schritt pro Nachricht, kleine Zahlen und Beispiele aus dem Alltag (Spielsachen, Znüni, Tiere). Keine Fachwörter.',
-  middle: 'Das Kind ist etwa 8–10 Jahre alt. Kurze Sätze, einfache Wörter, höchstens zwei Schritte pro Nachricht. Ein neues Fachwort nur mit kurzer Erklärung in Klammern.',
-  upper: 'Das Kind ist etwa 10–12 Jahre alt. Kurze, klare Sätze. Fachbegriffe aus dem Unterricht verwenden und beim ersten Mal kurz erklären.',
-  teen: 'Jugendliche ab etwa 12 Jahren. Sprich sie respektvoll und nicht kindlich an, ohne Jugendsprache nachzuahmen. Fachbegriffe sind normal; erkläre sie, wenn sie neu sein könnten.',
-  adult: 'Junge Erwachsene in Ausbildung. Sachlich und auf Augenhöhe, Fachsprache des Fachs bzw. Berufs. Kein Schulkinder-Ton.',
+  early: 'Das Kind ist 6–8 Jahre alt und liest vielleicht noch langsam. Sehr kurze Sätze mit höchstens etwa 10 Wörtern, nur bekannte Alltagswörter, ein einziger Schritt pro Nachricht, kleine Zahlen und Beispiele aus dem Alltag (Spielsachen, Znüni, Tiere). Keine Fachwörter. Ab und zu ein passendes Emoji ist in Ordnung.',
+  middle: 'Das Kind ist etwa 8–10 Jahre alt. Kurze Sätze, einfache Wörter, höchstens zwei Schritte pro Nachricht. Ein neues Fachwort nur mit kurzer Erklärung in Klammern. Ab und zu ein passendes Emoji ist in Ordnung.',
+  upper: 'Das Kind ist etwa 10–12 Jahre alt. Kurze, klare Sätze. Fachbegriffe aus dem Unterricht verwenden und beim ersten Mal kurz erklären. Emojis nur sparsam.',
+  teen: 'Jugendliche ab etwa 12 Jahren. Sprich sie respektvoll und nicht kindlich an, ohne Jugendsprache nachzuahmen. Fachbegriffe sind normal; erkläre sie, wenn sie neu sein könnten. Keine Emojis, das wirkt kindlich.',
+  adult: 'Junge Erwachsene in Ausbildung. Sachlich und auf Augenhöhe, Fachsprache des Fachs bzw. Berufs. Kein Schulkinder-Ton, keine Emojis.',
 };
 export function toneFor(stageId) {
   const stage = stageById(stageId);

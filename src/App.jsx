@@ -5,6 +5,7 @@ import Icon from './components/Icon';
 import ExamPlan from './components/ExamPlan';
 import LearningSheet from './components/LearningSheet';
 import StagePicker from './components/StagePicker';
+import { tidyMarkdown } from './markdown';
 import { fitSubject } from '../shared/curriculum.js';
 import { DEFAULT_STAGE, needsTrack, stageLabel, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation, buildTopicStart, buildExamStart, topicsAsContext, hasContent } from './learning';
 import './styles.css';
@@ -184,7 +185,7 @@ export default function App() {
           </section>
         </> : <section className="conversation" aria-label="Lerngespräch">
           <div className="conversation-header"><div className="chat-mascot"><LumiCharacter thinking={loading} size={84} /></div><div><div className="eyebrow">DEINE LERNRUNDE</div><h1>{session?.topic || 'Ein Schritt weiter.'}</h1><p>{currentStage}{session?.topic ? ` · ${session.subject}` : ''}</p></div><button className="button secondary compact" onClick={newTopic}>Neues Thema</button></div>
-          <div className="chat-log" role="log" aria-label="Nachrichten" aria-live="polite" aria-relevant="additions"><div className="chat-welcome"><Icon name="spark" size={18} /><span>Du denkst mit. Lumi hilft dir weiter.</span></div>{messages.map((m, i) => <article className={`message ${m.role}`} key={i}><span className="message-author">{m.role === 'user' ? 'Du' : 'Lumi'}</span><div className="message-content"><ReactMarkdown skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{m.content}</ReactMarkdown></div></article>)}{loading && <div className="thinking" role="status"><span /><span /><span /><span className="thinking-label">Lumi denkt nach …</span></div>}<div ref={bottomRef} /></div>
+          <div className="chat-log" role="log" aria-label="Nachrichten" aria-live="polite" aria-relevant="additions"><div className="chat-welcome"><Icon name="spark" size={18} /><span>Du denkst mit. Lumi hilft dir weiter.</span></div>{messages.map((m, i) => <article className={`message ${m.role}`} key={i}><span className="message-author">{m.role === 'user' ? 'Du' : 'Lumi'}</span><div className="message-content"><ReactMarkdown skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{m.role === 'assistant' ? tidyMarkdown(m.content) : m.content}</ReactMarkdown></div></article>)}{loading && <div className="thinking" role="status"><span /><span /><span /><span className="thinking-label">Lumi denkt nach …</span></div>}<div ref={bottomRef} /></div>
         </section>}
         <section className="composer-section" aria-label="Nachricht schreiben">
           {!LOCAL_PREVIEW && <div className="pilot-access"><label htmlFor="pilot-code">Dein Testcode</label><input id="pilot-code" type="password" value={pilotCode} onChange={e => setPilotCode(e.target.value)} maxLength={128} autoComplete="off" spellCheck={false} autoCapitalize="none" aria-describedby="pilot-code-help" /><p id="pilot-code-help">Den Code erhältst du von der Person, die dich zum Test eingeladen hat. Du brauchst kein Konto. Bitte teste vorerst nur als erwachsene Person mit erfundenen Angaben.</p></div>}
