@@ -1,0 +1,76 @@
+/* Chat, Kopfzeile, Testzugang und Startseite – ruhiger, einheitlicher Stil */
+
+/* Kopfzeile: nur Zugangsstatus links, Datenschutz/Einstellungen rechts */
+.topbar { min-height: 76px; }
+.topbar-status { min-height: 36px; display: flex; align-items: center; }
+.access-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px 7px 10px; border-radius: 999px;
+  border: 1px solid #b9e3d1; background: #ecf8f2; color: #1d644f; font-size: 13px; font-weight: 600;
+}
+.access-chip:hover { background: #e1f4ea; }
+
+/* Testzugang: einmal eingeben, dann eingeklappt */
+.pilot-access {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap;
+  margin-bottom: 14px; padding: 18px 20px; border: 1px solid #d9dfeb; border-radius: 16px; background: #fff;
+}
+.pilot-access-text { flex: 1 1 260px; min-width: 0; }
+.pilot-access label { display: block; font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.pilot-access p { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 0; }
+.pilot-access-row { display: flex; gap: 8px; flex: 1 1 320px; max-width: 440px; }
+.pilot-access-row input {
+  flex: 1; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid #b8c1d3; border-radius: 11px;
+  font-size: 16px; background: #fcfdff; max-width: none;
+}
+.pilot-access-row .button { flex: none; min-height: 46px; padding: 10px 16px; font-size: 14px; }
+
+/* Gesprächskopf ohne Grossbuchstaben-Zeile */
+.conversation-header h1 { margin: 0 0 4px; }
+
+/* Begrüssung statt leerem Kasten; der Kasten wächst mit dem Gespräch */
+.chat-log.is-empty { height: auto; min-height: 0; padding-bottom: 28px; }
+.message.greeting .message-content { background: #fff8e1; border: 1px solid #f3e3b0; }
+
+/* Hilfe-Knöpfe nicht über die Begrüssung legen */
+.toast { bottom: auto; top: 20px; }
+
+/* Startseite: ruhiger Kopf */
+.welcome h1 { margin-bottom: 14px; }
+.welcome p { margin-bottom: 0; }
+
+/* Einstellungen im Datenschutz-Dialog */
+.settings-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 14px 16px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 14px; background: #fafbfe; }
+.settings-row h3 { margin: 0 0 4px; font-size: 15px; }
+.settings-row p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.switch { position: relative; flex: none; display: inline-block; width: 48px; height: 28px; cursor: pointer; margin-top: 2px; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch > span[aria-hidden] { position: absolute; inset: 0; border-radius: 999px; background: #c9d0de; transition: background .15s; }
+.switch > span[aria-hidden]::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0003; transition: transform .15s; }
+.switch input:checked + span[aria-hidden] { background: var(--violet); }
+.switch input:checked + span[aria-hidden]::after { transform: translateX(20px); }
+.switch input:focus-visible + span[aria-hidden] { outline: 3px solid #8a68ee; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .switch > span[aria-hidden], .switch > span[aria-hidden]::after { transition: none; } }
+
+@media (max-width: 780px) {
+  .topbar { min-height: 60px; }
+  /* Ohne Zugangsstatus bleibt nur das Schild; der Datenschutz-Link steht auch im Footer */
+  .topbar.topbar-quiet { display: none; }
+  .topbar-quiet + * , .topbar.topbar-quiet ~ .welcome { margin-top: 18px; }
+  .conversation-header .compact { max-width: none; white-space: nowrap; }
+  .chat-log { height: 52dvh; }
+  .chat-log.is-empty { height: auto; }
+}
+
+@media (max-width: 480px) {
+  /* Startkarten als Liste statt drei enger Spalten */
+  .topic-grid { grid-template-columns: 1fr; gap: 8px; }
+  .topic-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 14px; row-gap: 2px; align-items: center; min-height: 0; padding: 14px 16px; }
+  .topic-card .subject-symbol { grid-row: 1 / span 2; margin: 0; }
+  .topic-card .topic-subject { grid-column: 2; grid-row: 1; margin: 0; min-height: 0; }
+  .topic-card strong { grid-column: 2; grid-row: 2; font-size: 15px; max-width: none; }
+  .topic-card > svg { display: block; position: static; grid-column: 3; grid-row: 1 / span 2; }
+  .pilot-access { padding: 16px; }
+  .pilot-access-row { max-width: none; flex-direction: column; }
+  .pilot-access-row .button { width: 100%; }
+  .toast { top: 12px; }
+}

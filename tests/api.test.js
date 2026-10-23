@@ -133,3 +133,18 @@ test('tone fits the stage and Mundart is understood without comment', () => {
   assert.match(tone('lehre'), /Junge Erwachsene/);
   assert.match(tone('p5'), /Schweizerdeutsch \(Mundart\)[\s\S]*antworte in Schweizer Standarddeutsch/);
 });
+
+test('distress is answered proportionately: no hotline for everyday frustration, always for acute danger', () => {
+  const prompt = makePrompt(validateBody(body()));
+  assert.match(prompt, /Alltagsbelastung[^\n]*Lehrperson, Eltern oder Schulsozialarbeit[^\n]*KEINE Hilfsnummern/);
+  assert.match(prompt, /Ernsthafte Belastung[^\n]*147/);
+  assert.match(prompt, /Selbstgefährdung[^\n]*immer die Nummern 147[^\n]*144[^\n]*117/);
+  assert.match(prompt, /höchstens EINE Frage/);
+});
+
+test('emojis fit the age', () => {
+  const p = stage => makePrompt(validateBody({ ...body(), stage }));
+  assert.match(p('p2'), /passendes Emoji ist in Ordnung/);
+  assert.match(p('o2'), /Keine Emojis/);
+  assert.match(p('lehre'), /keine Emojis/);
+});

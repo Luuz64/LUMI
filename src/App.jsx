@@ -5,11 +5,13 @@ import Icon from './components/Icon';
 import ExamPlan from './components/ExamPlan';
 import LearningSheet from './components/LearningSheet';
 import StagePicker from './components/StagePicker';
+import { tidyMarkdown } from './markdown';
 import { fitSubject } from '../shared/curriculum.js';
 import { DEFAULT_STAGE, needsTrack, stageLabel, EMPTY_EXAM, EMPTY_NOTES, MAX_IMPORT_BYTES, makeLearningSheet, readLearningSheet, sheetAsText, buildContinuation, buildTopicStart, buildExamStart, topicsAsContext, hasContent } from './learning';
 import './styles.css';
 import './mascot.css';
 import './plan.css';
+import './chat.css';
 
 
 const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === 'true';
@@ -40,6 +42,7 @@ export default function App() {
   const [failed, setFailed] = useState(null);
   const [notice, setNotice] = useState('');
   const [motion, setMotion] = useState(true);
+  const [accessOpen, setAccessOpen] = useState(true);
   const requestRef = useRef(null);
   const generation = useRef(0);
   const bottomRef = useRef(null);
@@ -66,7 +69,7 @@ export default function App() {
   function clearChat() { stopRequest(); setMessages([]); setError(''); setFailed(null); setInput(''); }
   function resetAll() {
     if (!window.confirm('Diese Sitzung beenden? Chat, Prüfung und Notizen werden aus dieser Seite entfernt. Lade deinen Lernzettel vorher herunter. Bereits übermittelte Daten beim KI-Anbieter werden dadurch nicht gelöscht.')) return;
-    setPilotCode('');
+    setPilotCode(''); setAccessOpen(true);
     clearChat(); setSession(null); setExam({ ...EMPTY_EXAM }); setNotes({ ...EMPTY_NOTES }); setStage(DEFAULT_STAGE); setTrack(''); setView('learn');
     setNotice('Die Sitzung auf dieser Seite ist beendet.');
   }
@@ -78,7 +81,7 @@ export default function App() {
   async function send(text, mode = 'coach', retry = false, overrideSession = null) {
     const content = (text ?? input).trim();
     if (!content || requestRef.current) return;
-    if (!LOCAL_PREVIEW && !pilotCode.trim()) { setError('Trage bitte zuerst deinen Testcode ein. Deine Nachricht wurde noch nicht gesendet.'); return; }
+    if (!LOCAL_PREVIEW && !pilotCode.trim()) { setAccessOpen(true); setError('Trage bitte zuerst deinen Testcode ein. Deine Nachricht wurde noch nicht gesendet.'); return; }
     if (content.length > 4000) { setError('Teile deine Aufgabe bitte in kleinere Abschnitte (höchstens 4000 Zeichen).'); return; }
     const current = overrideSession || session || { stage, track, subject: exam.subject, topic: '', date: '' };
     const nextMessages = retry ? messages : [...messages, { role: 'user', content }];
@@ -96,6 +99,7 @@ export default function App() {
         body: JSON.stringify({ messages: nextMessages, stage: current.stage, track: current.track || '', mode, context: { subject: current.subject, topic: current.topic, date: current.date } }),
       });
       const data = await response.json().catch(() => ({}));
+      if (response.status === 401) setAccessOpen(true);
       if (!response.ok) throw new Error(data.error || 'Lumi ist gerade nicht erreichbar. Bitte versuche es später noch einmal.');
       if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Es kam keine Antwort an. Bitte versuche es noch einmal.');
       if (requestId === generation.current) setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
@@ -115,7 +119,6 @@ export default function App() {
     setSession({ stage, track, subject: exam.subject, topic: topicLabel, date: exam.date });
     setView('learn');
     setInput(text);
-    setNotice('Deine Lernrunde ist bereit. Prüfe die Nachricht und sende sie an Lumi.');
     setTimeout(() => inputRef.current?.focus(), 0);
   }
   const practiceTopic = topic => startPractice(topic.text, buildTopicStart(topic));
@@ -149,6 +152,15 @@ export default function App() {
   }
 
   const currentStage = session ? stageLabel(session.stage, session.track) : stageLabel(stage, track);
+  const chatSubject = session?.subject || exam.subject;
+  const singleTopic = session?.topic && !session.topic.includes(', ') ? session.topic : '';
+  const chatTitle = singleTopic || (session?.topic ? `Prüfung in ${chatSubject}` : chatSubject && chatSubject !== 'Anderes Fach' ? chatSubject : 'Neue Lernrunde');
+  const chatMeta = [currentStage, singleTopic && chatSubject !== 'Anderes Fach' ? chatSubject : ''].filter(Boolean).join(', ');
+  const greeting = singleTopic
+    ? `Schön, dass du «${singleTopic}» üben willst. Unten steht schon eine Nachricht für den Start. Pass sie an, wenn du magst, und schick sie ab.`
+    : session?.topic
+      ? `Schön, dass du dich auf deine Prüfung vorbereitest. Wir fangen mit dem Thema an, bei dem du dich am unsichersten fühlst. Schick die Nachricht unten ab, wenn sie passt.`
+      : 'Hallo! Was möchtest du heute verstehen? Schreib deine Frage oder Aufgabe einfach so, wie du sie sagen würdest, auch auf Mundart.';
   function changeProfile(next) {
     setStage(next.stage);
     setTrack(needsTrack(next.stage) ? next.track : '');
@@ -170,12 +182,15 @@ export default function App() {
       </div>
     </aside>
     <main id="main" className="main">
-      <header className="topbar"><span className="eyebrow">DEIN LERNRAUM</span><div className="topbar-actions"><label className="motion-toggle"><input type="checkbox" checked={motion} onChange={e => setMotion(e.target.checked)} /><span>Animation</span></label><button className="icon-button" onClick={() => privacyRef.current.showModal()} aria-label="Datenschutz öffnen"><Icon name="shield" /></button></div></header>
+      <header className={`topbar ${!LOCAL_PREVIEW && pilotCode && !accessOpen ? '' : 'topbar-quiet'}`}>
+        <div className="topbar-status">{!LOCAL_PREVIEW && pilotCode && !accessOpen && <button className="access-chip" onClick={() => setAccessOpen(true)} title="Testcode ändern"><Icon name="check" size={15} /> Testzugang aktiv</button>}</div>
+        <button className="icon-button" onClick={() => privacyRef.current.showModal()} aria-label="Datenschutz und Einstellungen"><Icon name="shield" /></button>
+      </header>
       {LOCAL_PREVIEW && <div className="preview-banner">Vorschau ohne KI-Verbindung. Prüfung und Lernzettel kannst du ausprobieren.</div>}
       {view === 'learn' && <>
         {!messages.length && !session ? <>
           <section className="welcome">
-            <div className="welcome-copy"><div className="welcome-kicker"><span /> KLEINE SCHRITTE. GROSSE AHA-MOMENTE.</div><h1>In dir steckt<br />ein <span>heller Kopf.</span></h1><p>Bring deine Frage mit.<br />Wir finden deinen nächsten Schritt.</p><div className="lumi-caption"><span className="caption-line" /> Zusammen mit Lumi</div></div>
+            <div className="welcome-copy"><h1>In dir steckt<br />ein <span>heller Kopf.</span></h1><p>Bring deine Frage mit.<br />Wir finden deinen nächsten Schritt.</p></div>
             <div className="mascot-stage"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><span className="star star-one">✦</span><span className="star star-two">✧</span><LumiCharacter thinking={false} size="100%" /><div className="mascot-speech">Was möchtest du verstehen?</div></div>
           </section>
           <section className="learn-start"><div className="section-heading"><h2>Wo starten wir?</h2><StagePicker variant="inline" stage={stage} track={track} onChange={changeProfile} /></div>
@@ -183,11 +198,14 @@ export default function App() {
             <button className="exam-shortcut" onClick={() => setView('exam')}><span className="shortcut-icon"><Icon name="calendar" /></span><span><strong>Eine Prüfung steht an?</strong><span>Wir üben Schritt für Schritt für deinen Termin.</span></span><Icon name="arrow" /></button>
           </section>
         </> : <section className="conversation" aria-label="Lerngespräch">
-          <div className="conversation-header"><div className="chat-mascot"><LumiCharacter thinking={loading} size={84} /></div><div><div className="eyebrow">DEINE LERNRUNDE</div><h1>{session?.topic || 'Ein Schritt weiter.'}</h1><p>{currentStage}{session?.topic ? ` · ${session.subject}` : ''}</p></div><button className="button secondary compact" onClick={newTopic}>Neues Thema</button></div>
-          <div className="chat-log" role="log" aria-label="Nachrichten" aria-live="polite" aria-relevant="additions"><div className="chat-welcome"><Icon name="spark" size={18} /><span>Du denkst mit. Lumi hilft dir weiter.</span></div>{messages.map((m, i) => <article className={`message ${m.role}`} key={i}><span className="message-author">{m.role === 'user' ? 'Du' : 'Lumi'}</span><div className="message-content"><ReactMarkdown skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{m.content}</ReactMarkdown></div></article>)}{loading && <div className="thinking" role="status"><span /><span /><span /><span className="thinking-label">Lumi denkt nach …</span></div>}<div ref={bottomRef} /></div>
+          <div className="conversation-header"><div className="chat-mascot"><LumiCharacter thinking={loading} size={84} /></div><div><h1>{chatTitle}</h1><p>{chatMeta}</p></div><button className="button secondary compact" onClick={newTopic}>Neues Thema</button></div>
+          <div className={`chat-log ${messages.length ? '' : 'is-empty'}`} role="log" aria-label="Nachrichten" aria-live="polite" aria-relevant="additions"><article className="message assistant greeting"><span className="message-author">Lumi</span><div className="message-content"><p>{greeting}</p></div></article>{messages.map((m, i) => <article className={`message ${m.role}`} key={i}><span className="message-author">{m.role === 'user' ? 'Du' : 'Lumi'}</span><div className="message-content"><ReactMarkdown skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{m.role === 'assistant' ? tidyMarkdown(m.content) : m.content}</ReactMarkdown></div></article>)}{loading && <div className="thinking" role="status"><span /><span /><span /><span className="thinking-label">Lumi denkt nach …</span></div>}<div ref={bottomRef} /></div>
         </section>}
         <section className="composer-section" aria-label="Nachricht schreiben">
-          {!LOCAL_PREVIEW && <div className="pilot-access"><label htmlFor="pilot-code">Dein Testcode</label><input id="pilot-code" type="password" value={pilotCode} onChange={e => setPilotCode(e.target.value)} maxLength={128} autoComplete="off" spellCheck={false} autoCapitalize="none" aria-describedby="pilot-code-help" /><p id="pilot-code-help">Den Code erhältst du von der Person, die dich zum Test eingeladen hat. Du brauchst kein Konto. Bitte teste vorerst nur als erwachsene Person mit erfundenen Angaben.</p></div>}
+          {!LOCAL_PREVIEW && accessOpen && <form className="pilot-access" onSubmit={e => { e.preventDefault(); if (pilotCode.trim()) { setAccessOpen(false); setError(''); inputRef.current?.focus(); } }}>
+            <div className="pilot-access-text"><label htmlFor="pilot-code">Testzugang</label><p id="pilot-code-help">Den Code bekommst du von der Person, die dich zum Test eingeladen hat. Teste vorerst nur mit erfundenen Angaben.</p></div>
+            <div className="pilot-access-row"><input id="pilot-code" type="password" value={pilotCode} onChange={e => setPilotCode(e.target.value)} maxLength={128} autoComplete="off" spellCheck={false} autoCapitalize="none" aria-describedby="pilot-code-help" placeholder="Testcode" /><button className="button primary" type="submit" disabled={!pilotCode.trim()}>Zugang speichern</button></div>
+          </form>}
           {messages.length > 0 && !loading && !failed && <div className="help-options" aria-label="Weitere Hilfe">{HELP.map(h => <button key={h.mode} onClick={() => send(h.text, h.mode)}>{h.label}</button>)}</div>}
           {error && <div className="error-box" role="alert"><span>{error}</span>{failed && <button onClick={() => send(failed.text, failed.mode, true)} disabled={loading}>Nochmals versuchen</button>}{failed && <button onClick={() => { setInput(failed.text); setMessages(prev => prev.slice(0, -1)); setFailed(null); setError(''); }}>Nachricht bearbeiten</button>}</div>}
           <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}><label className="sr-only" htmlFor="question">Deine Frage an Lumi</label><textarea ref={inputRef} id="question" value={input} onChange={e => setInput(e.target.value)} placeholder="Deine Frage, deine Aufgabe, dein erster Gedanke …" maxLength={4000} rows={2} disabled={!!failed} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} /><button className="send-button" type="submit" disabled={!input.trim() || loading || !!failed} aria-label="Nachricht senden"><Icon name="send" /></button></form>
@@ -200,6 +218,6 @@ export default function App() {
     </main>
     <input ref={importRef} className="sr-only" tabIndex={-1} type="file" accept=".json,application/json" aria-label="Lumi-Lernzettel laden" onChange={loadSheet} />
     {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice('')} aria-label="Hinweis schliessen"><Icon name="close" size={18} /></button></div>}
-    <dialog ref={privacyRef} className="privacy-dialog"><div className="dialog-heading"><Icon name="shield" size={26} /><h2>Deine Daten bei Lumi</h2><button className="icon-button" onClick={() => privacyRef.current.close()} aria-label="Datenschutzhinweise schliessen" autoFocus><Icon name="close" /></button></div><div className="dialog-body"><p><strong>Du entscheidest, was du mitnehmen möchtest.</strong> Diese Version legt keine Konten an und speichert Chats oder Lernstände nicht dauerhaft in der App. Beim Neuladen oder Beenden der Sitzung werden sie aus der Seite entfernt.</p><h3>Dein Testzugang</h3><p>Der Testcode wird nur in dieser geöffneten Seite gehalten und zur Prüfung an den Lumi-Server gesendet, nicht an die KI. Beim Beenden der Sitzung wird er aus der Seite entfernt. Er ist kein persönliches Konto.</p><h3>Was geht an die KI?</h3><p>Beim Senden gehen dein bisheriger Chat dieser Lernrunde, die gewählte Stufe und gegebenenfalls Fach, Themen und Prüfungstermin über den Server an Anthropic. Gib keine Namen, Adressen oder anderen privaten Angaben ein. Es gibt keinen Filter, der alle persönlichen Angaben sicher erkennen kann.</p><h3>Was ist mit meinem Lernzettel?</h3><p>Notizen bleiben zunächst in dieser Seite. Herunterladen speichert eine Datei auf deinem Gerät. Laden liest sie in die Seite ein. Erst wenn du sie beim Weiterlernen als Nachricht sendest, gehen sie an die KI. Auf geteilten Geräten: eigene Speicherplätze verwenden und die Sitzung am Ende beenden.</p><h3>Was bedeutet „Sitzung beenden“?</h3><p>Das entfernt die Daten aus dieser Seite. Es löscht keine heruntergeladenen Dateien oder bereits beim Anbieter verarbeiteten Daten. Lumi verwendet keine Analyse- oder Werbedienste und lädt keine externen Schriftarten. Beim Hosting und KI-Anbieter können jedoch technische Protokolle und Aufbewahrungsfristen bestehen.</p><div className="pilot-notice"><strong>Entwicklungsversion – noch keine Freigabe für Schülerdaten.</strong><p>Vor dem Klasseneinsatz müssen die Schule und der Betreiber die Anbietervereinbarungen, Speicherorte und -fristen, Zugriffsregeln, Kostenbegrenzung und Verantwortlichkeiten prüfen. Diese Hinweise ersetzen keine vollständige Datenschutzerklärung des Betreibers.</p></div><p>Lumi ist eine Lernhilfe, kann Fehler machen und ersetzt keine Lehrperson. Bei belastenden oder gefährlichen Situationen wende dich an eine vertraute erwachsene Person.</p><h3>Hilfe, wenn es dir nicht gut geht</h3><p><strong>147</strong> – Pro Juventute, Beratung für Kinder und Jugendliche (rund um die Uhr, auch Chat und SMS)<br /><strong>143</strong> – Die Dargebotene Hand<br /><strong>144</strong> – Notfall Sanität · <strong>117</strong> – Polizei</p></div><button className="button primary" onClick={() => privacyRef.current.close()}>Verstanden</button></dialog>
+    <dialog ref={privacyRef} className="privacy-dialog"><div className="dialog-heading"><Icon name="shield" size={26} /><h2>Deine Daten bei Lumi</h2><button className="icon-button" onClick={() => privacyRef.current.close()} aria-label="Datenschutzhinweise schliessen" autoFocus><Icon name="close" /></button></div><div className="dialog-body"><div className="settings-row"><div><h3>Animation</h3><p>Lumi bewegt sich auf der Startseite und im Chat. Wenn dich das ablenkt, schalte es aus.</p></div><label className="switch"><input type="checkbox" role="switch" checked={motion} onChange={e => setMotion(e.target.checked)} /><span aria-hidden="true" /><span className="sr-only">Animation</span></label></div><p><strong>Du entscheidest, was du mitnehmen möchtest.</strong> Diese Version legt keine Konten an und speichert Chats oder Lernstände nicht dauerhaft in der App. Beim Neuladen oder Beenden der Sitzung werden sie aus der Seite entfernt.</p><h3>Dein Testzugang</h3><p>Der Testcode wird nur in dieser geöffneten Seite gehalten und zur Prüfung an den Lumi-Server gesendet, nicht an die KI. Beim Beenden der Sitzung wird er aus der Seite entfernt. Er ist kein persönliches Konto.</p><h3>Was geht an die KI?</h3><p>Beim Senden gehen dein bisheriger Chat dieser Lernrunde, die gewählte Stufe und gegebenenfalls Fach, Themen und Prüfungstermin über den Server an Anthropic. Gib keine Namen, Adressen oder anderen privaten Angaben ein. Es gibt keinen Filter, der alle persönlichen Angaben sicher erkennen kann.</p><h3>Was ist mit meinem Lernzettel?</h3><p>Notizen bleiben zunächst in dieser Seite. Herunterladen speichert eine Datei auf deinem Gerät. Laden liest sie in die Seite ein. Erst wenn du sie beim Weiterlernen als Nachricht sendest, gehen sie an die KI. Auf geteilten Geräten: eigene Speicherplätze verwenden und die Sitzung am Ende beenden.</p><h3>Was bedeutet „Sitzung beenden“?</h3><p>Das entfernt die Daten aus dieser Seite. Es löscht keine heruntergeladenen Dateien oder bereits beim Anbieter verarbeiteten Daten. Lumi verwendet keine Analyse- oder Werbedienste und lädt keine externen Schriftarten. Beim Hosting und KI-Anbieter können jedoch technische Protokolle und Aufbewahrungsfristen bestehen.</p><div className="pilot-notice"><strong>Entwicklungsversion – noch keine Freigabe für Schülerdaten.</strong><p>Vor dem Klasseneinsatz müssen die Schule und der Betreiber die Anbietervereinbarungen, Speicherorte und -fristen, Zugriffsregeln, Kostenbegrenzung und Verantwortlichkeiten prüfen. Diese Hinweise ersetzen keine vollständige Datenschutzerklärung des Betreibers.</p></div><p>Lumi ist eine Lernhilfe, kann Fehler machen und ersetzt keine Lehrperson. Bei belastenden oder gefährlichen Situationen wende dich an eine vertraute erwachsene Person.</p><h3>Hilfe, wenn es dir nicht gut geht</h3><p><strong>147</strong> – Pro Juventute, Beratung für Kinder und Jugendliche (rund um die Uhr, auch Chat und SMS)<br /><strong>143</strong> – Die Dargebotene Hand<br /><strong>144</strong> – Notfall Sanität · <strong>117</strong> – Polizei</p></div><button className="button primary" onClick={() => privacyRef.current.close()}>Verstanden</button></dialog>
   </div>;
 }
