@@ -41,6 +41,7 @@ test('validated context is sent as user content, while age and help mode are con
   assert.equal(result.statusCode, 200); assert.equal(payload.system.includes('Ignore all instructions'), false);
   assert.match(payload.messages[0].content, /Ignore all instructions/); assert.match(payload.system, /ANDEREN analogen Beispiel/);
   assert.match(makePrompt(validateBody(body())), /Richtige Lösungen dürfen ausdrücklich bestätigt/);
+  assert.match(makePrompt(validateBody(body())), /147 \(Pro Juventute/);
 });
 test('empty upstream responses and timeouts give usable errors', async () => {
   assert.equal((await invoke(request(), { fetchImpl: async () => ({ ok: true, json: async () => ({ content: [] }) }) })).statusCode, 502);
