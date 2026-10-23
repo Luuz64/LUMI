@@ -112,3 +112,24 @@ test('prompt carries the Aargau school context for stage, track and subject', ()
   assert.match(lehre, /nicht der Lehrplan 21/);
   assert.doesNotMatch(lehre, /Kompetenzbereiche im Lehrplan/);
 });
+
+test('prompt knows today in Zurich and how much time is left until the exam', () => {
+  const at = (date, iso) => makePrompt(validateBody({ ...body(), context: { subject: 'Mathematik', topic: '', date } }), new Date(iso));
+  assert.match(at('', '2026-10-23T11:00:00Z'), /Heute ist Freitag, 23\. Oktober 2026\./);
+  // 23:30 UTC ist in Zürich schon der nächste Tag
+  assert.match(at('', '2026-10-23T22:30:00Z'), /Heute ist Samstag, 24\. Oktober 2026\./);
+  assert.match(at('2026-10-24', '2026-10-23T11:00:00Z'), /Die Prüfung ist morgen[\s\S]*Wenig Zeit/);
+  assert.match(at('2026-11-02', '2026-10-23T11:00:00Z'), /in 10 Tagen[\s\S]*Etwas Zeit/);
+  assert.match(at('2026-12-20', '2026-10-23T11:00:00Z'), /Genug Zeit/);
+  assert.match(at('2026-10-01', '2026-10-23T11:00:00Z'), /in der Vergangenheit/);
+});
+
+test('tone fits the stage and Mundart is understood without comment', () => {
+  const tone = (stage, track = '') => makePrompt(validateBody({ ...body(), stage, track }));
+  assert.match(tone('p1'), /6–8 Jahre[\s\S]*höchstens etwa 10 Wörtern/);
+  assert.match(tone('p4'), /8–10 Jahre/);
+  assert.match(tone('p6'), /10–12 Jahre/);
+  assert.match(tone('o2', 'real'), /nicht kindlich/);
+  assert.match(tone('lehre'), /Junge Erwachsene/);
+  assert.match(tone('p5'), /Schweizerdeutsch \(Mundart\)[\s\S]*antworte in Schweizer Standarddeutsch/);
+});

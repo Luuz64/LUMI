@@ -147,3 +147,50 @@ export function migrateStage(oldId) {
   if (oldId === 'sek2') return 'mittelschule';
   return null;
 }
+
+// Sprache und Ton je Stufe. Konkrete Vorgaben statt nur «altersgerecht».
+const TONE = {
+  early: 'Das Kind ist 6–8 Jahre alt und liest vielleicht noch langsam. Sehr kurze Sätze mit höchstens etwa 10 Wörtern, nur bekannte Alltagswörter, ein einziger Schritt pro Nachricht, kleine Zahlen und Beispiele aus dem Alltag (Spielsachen, Znüni, Tiere). Keine Fachwörter.',
+  middle: 'Das Kind ist etwa 8–10 Jahre alt. Kurze Sätze, einfache Wörter, höchstens zwei Schritte pro Nachricht. Ein neues Fachwort nur mit kurzer Erklärung in Klammern.',
+  upper: 'Das Kind ist etwa 10–12 Jahre alt. Kurze, klare Sätze. Fachbegriffe aus dem Unterricht verwenden und beim ersten Mal kurz erklären.',
+  teen: 'Jugendliche ab etwa 12 Jahren. Sprich sie respektvoll und nicht kindlich an, ohne Jugendsprache nachzuahmen. Fachbegriffe sind normal; erkläre sie, wenn sie neu sein könnten.',
+  adult: 'Junge Erwachsene in Ausbildung. Sachlich und auf Augenhöhe, Fachsprache des Fachs bzw. Berufs. Kein Schulkinder-Ton.',
+};
+export function toneFor(stageId) {
+  const stage = stageById(stageId);
+  if (!stage) return '';
+  if (stage.group === 'sek2') return TONE.adult;
+  if (stage.group === 'oberstufe') return TONE.teen;
+  if (stage.year <= 2) return TONE.early;
+  return stage.year <= 4 ? TONE.middle : TONE.upper;
+}
+
+const pad = n => String(n).padStart(2, '0');
+/** Today's date in Zurich as YYYY-MM-DD, independent of the server's time zone. */
+export function zurichToday(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).map(p => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+const longDate = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('de-CH', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+
+/** Date context for the model: today, and how much time is left until an exam. */
+export function timeContext(examDate = '', now = new Date()) {
+  const today = zurichToday(now);
+  const lines = [`Heute ist ${longDate(today)}.`];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(examDate)) {
+    const toUtc = iso => { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+    const days = Math.round((toUtc(examDate) - toUtc(today)) / 86400000);
+    if (days < 0) {
+      lines.push('Das angegebene Prüfungsdatum liegt in der Vergangenheit. Erwähne es nicht, ausser das Kind spricht es an.');
+    } else {
+      const when = days === 0 ? 'heute' : days === 1 ? 'morgen' : `in ${days} Tagen`;
+      lines.push(`Die Prüfung ist ${when} (${longDate(examDate)}).`);
+      lines.push(days <= 3
+        ? 'Wenig Zeit: Konzentriere dich auf das Wiederholen und Festigen des Wichtigsten. Fang keine grossen neuen Themen an und bleib ruhig und ermutigend, ohne Druck zu machen.'
+        : days <= 14
+          ? 'Etwas Zeit: Übe gezielt die unsicheren Themen und plane bei Bedarf kurze Übungseinheiten über die verbleibenden Tage.'
+          : 'Genug Zeit: Verständnis aufbauen ist wichtiger als Auswendiglernen. Kein Zeitdruck.');
+    }
+  }
+  return lines.join('\n');
+}
