@@ -13,6 +13,7 @@ export default function Icon({ name, size = 22, ...props }) {
     upload: <><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" /></>,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     reset: <><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" /></>,
+    check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
     plus: <path d="M12 5v14M5 12h14" />,
     print: <><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3" /><rect x="7" y="14" width="10" height="7" rx="1" /></>,
     trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></>,
