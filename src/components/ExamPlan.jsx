@@ -1,9 +1,18 @@
 import React, { useRef, useState } from 'react';
 import Icon from './Icon';
 import Lights from './Lights';
-import { STAGES, SUBJECTS, LEVELS, MAX_TOPICS, MAX_TOPIC_LENGTH, makeTopic, countdownText, formatDate, daysUntil } from '../learning';
+import StagePicker from './StagePicker';
+import { subjectsFor, subjectByLabel } from '../../shared/curriculum.js';
 
-export default function ExamPlan({ stage, setStage, exam, setExam, onPracticeTopic, onStartAll, onOpenSheet }) {
+const EXAMPLE_TOPICS = {
+  MA: 'Brüche kürzen', D: 'Nomen und Verben erkennen', FS1E: 'Simple Past', FS2F: 'Verben im Präsens', NMG: 'Wasserkreislauf',
+  NT: 'Chemische Reaktionen', RZG: 'Die Römer in der Schweiz', WAH: 'Ausgewogene Ernährung', ERG: 'Feste in verschiedenen Religionen',
+  MI: 'Algorithmen', BIO: 'Zellaufbau', CH: 'Säuren und Basen', PH: 'Elektrischer Strom', GE: 'Industrialisierung', GG: 'Klimazonen',
+  WR: 'Angebot und Nachfrage', ABU: 'Mietvertrag',
+};
+import { LEVELS, MAX_TOPICS, MAX_TOPIC_LENGTH, makeTopic, countdownText, formatDate, daysUntil } from '../learning';
+
+export default function ExamPlan({ stage, track, onProfileChange, exam, setExam, onPracticeTopic, onStartAll, onOpenSheet }) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
   const days = daysUntil(exam.date);
@@ -31,13 +40,12 @@ export default function ExamPlan({ stage, setStage, exam, setExam, onPracticeTop
 
       <div className="sheet">
         <div className="sheet-section exam-basics">
-          <label className="field">
-            <span className="field-label">Stufe</span>
-            <select value={stage} onChange={e => setStage(e.target.value)}>{STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
-          </label>
+          <StagePicker stage={stage} track={track} onChange={onProfileChange} />
           <label className="field">
             <span className="field-label">Fach</span>
-            <select value={exam.subject} onChange={e => setExam({ ...exam, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
+            <select value={exam.subject} onChange={e => setExam({ ...exam, subject: e.target.value })}>
+              {subjectsFor(stage).map(s => <option key={s.id} value={s.label}>{s.label}{s.hint ? ` (${s.hint})` : ''}</option>)}
+            </select>
           </label>
           <label className="field">
             <span className="field-label">Prüfungsdatum <span className="optional">optional</span></span>
@@ -61,7 +69,7 @@ export default function ExamPlan({ stage, setStage, exam, setExam, onPracticeTop
             <label className="sr-only" htmlFor="new-topic">Neues Thema</label>
             <input id="new-topic" ref={inputRef} value={draft} maxLength={MAX_TOPIC_LENGTH * 3} disabled={full}
               onChange={e => setDraft(e.target.value)}
-              placeholder={full ? 'Mehr Themen passen nicht auf einen Plan.' : 'Zum Beispiel: Brüche kürzen'} />
+              placeholder={full ? 'Mehr Themen passen nicht auf einen Plan.' : `Zum Beispiel: ${EXAMPLE_TOPICS[subjectByLabel(exam.subject)?.id] || 'Brüche kürzen'}`} />
             <button className="button secondary" type="submit" disabled={!draft.trim() || full}><Icon name="plus" size={18} /> Hinzufügen</button>
           </form>
           <p className="field-help">Mehrere Themen auf einmal? Trenn sie mit Komma.</p>

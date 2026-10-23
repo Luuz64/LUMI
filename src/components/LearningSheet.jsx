@@ -1,7 +1,7 @@
 import React from 'react';
 import Icon from './Icon';
 import Lights from './Lights';
-import { STAGES, practiceOrder, levelLabel, countdownText, formatDate, hasContent } from '../learning';
+import { stageLabel as formatStage, practiceOrder, levelLabel, countdownText, formatDate, hasContent } from '../learning';
 
 const FIELDS = [
   ['understood', 'Das habe ich verstanden', 'Was kannst du jetzt in eigenen Worten erklären?'],
@@ -9,8 +9,8 @@ const FIELDS = [
   ['next', 'Mein nächster Schritt', 'Womit fängst du beim nächsten Mal an?'],
 ];
 
-export default function LearningSheet({ stage, exam, notes, setNotes, onEditPlan, onContinue, onDownload, onCopy, onLoad }) {
-  const stageLabel = STAGES.find(s => s.id === stage)?.label;
+export default function LearningSheet({ stage, track, exam, notes, setNotes, onEditPlan, onContinue, onDownload, onCopy, onLoad }) {
+  const stageLabel = formatStage(stage, track);
   const filled = hasContent(exam, notes);
 
   return (
