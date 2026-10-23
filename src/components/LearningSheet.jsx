@@ -1,6 +1,7 @@
 import React from 'react';
 import Icon from './Icon';
 import Lights from './Lights';
+import { subjectsFor } from '../../shared/curriculum.js';
 import { stageLabel as formatStage, practiceOrder, levelLabel, countdownText, formatDate, hasContent } from '../learning';
 
 const FIELDS = [
@@ -9,7 +10,7 @@ const FIELDS = [
   ['next', 'Mein nächster Schritt', 'Womit fängst du beim nächsten Mal an?'],
 ];
 
-export default function LearningSheet({ stage, track, exam, notes, setNotes, onEditPlan, onContinue, onDownload, onCopy, onLoad }) {
+export default function LearningSheet({ stage, track, exam, setExam, notes, setNotes, onEditPlan, onContinue, onDownload, onCopy, onLoad }) {
   const stageLabel = formatStage(stage, track);
   const filled = hasContent(exam, notes);
 
@@ -23,7 +24,13 @@ export default function LearningSheet({ stage, track, exam, notes, setNotes, onE
       <article className="sheet learning-sheet" aria-label="Lernzettel">
         <div className="sheet-section sheet-head">
           <div>
-            <p className="sheet-subject">{exam.subject}</p>
+            <label className="sheet-subject-picker">
+              <span className="sr-only">Fach dieses Lernzettels</span>
+              <select className="sheet-subject" value={exam.subject} onChange={e => setExam({ ...exam, subject: e.target.value })}>
+                {subjectsFor(stage).map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
+              </select>
+              <span className="print-only sheet-subject-print">{exam.subject}</span>
+            </label>
             <p className="sheet-meta">{stageLabel}</p>
           </div>
           {exam.date ? (

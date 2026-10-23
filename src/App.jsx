@@ -88,6 +88,8 @@ export default function App() {
     if (nextMessages.length > 25 || nextMessages.reduce((n, m) => n + m.content.length, 0) > 26000) {
       setError('Diese Lernrunde ist voll. Nimm das Wichtigste in deinen Lernzettel auf und beginne ein neues Thema.'); return;
     }
+    // Ohne eingetragene Prüfung folgt der Lernzettel dem Fach, in dem gerade gelernt wird.
+    if (!exam.topics.length && !exam.date && current.subject && current.subject !== exam.subject) setExam(prev => ({ ...prev, subject: current.subject }));
     setSession(current); setMessages(nextMessages); setInput(''); setError(''); setFailed(null); setLoading(true); setView('learn');
     const controller = new AbortController(); requestRef.current = controller;
     const requestId = ++generation.current;
@@ -213,7 +215,7 @@ export default function App() {
         </section>
       </>}
       {view === 'exam' && <ExamPlan stage={stage} track={track} onProfileChange={changeProfile} exam={exam} setExam={setExam} onPracticeTopic={practiceTopic} onStartAll={practiceExam} onOpenSheet={() => setView('notes')} />}
-      {view === 'notes' && <LearningSheet stage={stage} track={track} exam={exam} notes={notes} setNotes={setNotes} onEditPlan={() => setView('exam')} onContinue={continueLearning} onDownload={download} onCopy={copyNotes} onLoad={() => importRef.current.click()} />}
+      {view === 'notes' && <LearningSheet stage={stage} track={track} exam={exam} setExam={setExam} notes={notes} setNotes={setNotes} onEditPlan={() => setView('exam')} onContinue={continueLearning} onDownload={download} onCopy={copyNotes} onLoad={() => importRef.current.click()} />}
       <footer className="footer"><span>Dein Tempo. Dein Denkweg.</span><span>Brauchst du Hilfe? Ruf <a href="tel:147">147</a> an – rund um die Uhr.</span><button onClick={() => privacyRef.current.showModal()}>Datenschutz & Hinweise zum Testbetrieb</button></footer>
     </main>
     <input ref={importRef} className="sr-only" tabIndex={-1} type="file" accept=".json,application/json" aria-label="Lumi-Lernzettel laden" onChange={loadSheet} />

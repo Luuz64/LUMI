@@ -90,6 +90,15 @@
 .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; background: #fffbea; border-bottom-color: #f0e6c4; }
 .learning-sheet .sheet-head + .sheet-section { border-top-color: #f0e6c4; }
 .sheet-subject { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin: 0 0 2px; line-height: 1.2; }
+.sheet-subject-picker { display: block; max-width: 100%; }
+.sheet-head > div:first-child { min-width: 0; flex: 1; }
+select.sheet-subject {
+  appearance: none; -webkit-appearance: none; border: 0; border-radius: 8px; background: transparent; color: var(--ink);
+  padding: 2px 30px 2px 6px; margin-left: -6px; width: auto; max-width: calc(100% + 6px); field-sizing: content; cursor: pointer; font-family: inherit; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2359657c' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center;
+}
+select.sheet-subject:hover { background-color: #fff3cc; }
 .sheet-meta { font-size: 14px; color: var(--muted); margin: 0; }
 .sheet-date { display: flex; flex-direction: column; align-items: flex-end; text-align: right; margin: 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
 .sheet-date strong { color: var(--ink); font-size: 16px; }
@@ -168,7 +177,8 @@
   .lights .light-unsure { background: #f6e3b0; }
   .lights .light, .topic-dot, .level-tag { print-color-adjust: exact; -webkit-print-color-adjust: exact; box-shadow: none; }
   .topic-dot.light-none, .lights .light-none { border: 1.5px solid #9aa4b8; }
-  .reflection-field textarea { display: none; }
+  .reflection-field textarea, select.sheet-subject { display: none; }
+  .sheet-subject-print { font-size: 22px; font-weight: 800; }
   .print-only { display: block; }
   .print-text { min-height: 56px; white-space: pre-wrap; font-size: 15px; line-height: 28px; border-bottom: 1px solid #c9d1e3; padding-bottom: 4px; }
   .print-footer { font-size: 11px; color: var(--muted); padding: 10px 20px; margin: 0; }
