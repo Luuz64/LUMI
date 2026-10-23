@@ -11,7 +11,8 @@ Lumi begleitet Kinder und Jugendliche beim Denken. Diese Version überarbeitet d
 - Schulstufen 1–9 und Sek II/Lehre bleiben verfügbar. Voreinstellung ist das 5. Schuljahr und sichtbar änderbar.
 - Freies Lernen, Prüfungsvorbereitung mit Fach/Themen/optionalem Datum.
 - Drei Hilfen: Hinweis, anderes erklärtes Beispiel, Verständnisprüfung. Richtige eigene Lösungen dürfen bestätigt werden.
-- Lernzettel mit **eigenen** Notizen. JSON-Download und validierter Import; Text kopieren; bewusstes Senden der Notizen zum Weiterlernen.
+- Prüfungsplan: Themen als Liste mit eigener Einschätzung (Noch unsicher / Geht so / Sitzt), Countdown zum Prüfungsdatum, jedes Thema einzeln üben. Die „Lichterkette“ zeigt die Selbsteinschätzung, sie ist keine Bewertung.
+- Lernzettel mit **eigenen** Notizen, Themenübersicht und Druckansicht. Format Version 2; Lernzettel der Version 1 lassen sich weiterhin laden. JSON-Download und validierter Import; Text kopieren; bewusstes Senden der Notizen zum Weiterlernen.
 - Kein localStorage, sessionStorage, Cookie, Konto oder Datenbankspeicher für Chat/Lernstand. Daten bleiben in React-Zustand bis Neuladen oder Sitzungsende.
 - Keine externen Schriften, Analytics oder Werbedienste. Von KI-Nachrichten eingebettete Bilder und anklickbare Links werden nicht geladen/angeboten.
 - Serverprüfung für Stufe, Hilfemodus, Rollenfolge und Eingabegrössen; Zeitlimit; generische Fehler; keine Chat-Inhalte in Anwendung-Logs; no-store für API-Antworten.
